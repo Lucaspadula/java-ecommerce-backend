@@ -1,0 +1,13 @@
+-- Clasifica el rol de cada Insumo dentro de la receta de un Producto:
+-- MATERIA_PRIMA (se consume siempre) o EMBALAJE (bolsas, stickers,
+-- folletos — cuando el producto se vende como componente de un Kit, el kit
+-- pone su propio embalaje compartido en vez de que cada componente traiga
+-- el suyo, ver ConsumoEnComboStrategy).
+--
+-- Nullable a propósito: no todo insumo existente está clasificado todavía.
+-- Es un trabajo de reclasificación de datos real, pendiente, que se hace a
+-- mano después — esta migración NO le pone un default ni intenta adivinar
+-- el rol de los insumos existentes, los deja NULL. ConsumoEnComboStrategy
+-- trata NULL igual que MATERIA_PRIMA (se consume), así que no clasificar un
+-- insumo todavía no rompe nada.
+ALTER TABLE insumo ADD COLUMN rol VARCHAR(20) NULL;
