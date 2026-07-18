@@ -12,6 +12,7 @@ import com.sistventas.backend.entity.Cliente;
 import com.sistventas.backend.entity.EstadoVenta;
 import com.sistventas.backend.entity.Insumo;
 import com.sistventas.backend.entity.Producto;
+import com.sistventas.backend.entity.ProductoComponente;
 import com.sistventas.backend.entity.ProductoInsumo;
 import com.sistventas.backend.entity.Usuario;
 import com.sistventas.backend.entity.Venta;
@@ -65,6 +66,8 @@ public class VentaServiceImpl implements VentaService {
     private final VentaEstadoHistorialRepository ventaEstadoHistorialRepository;
     private final UsuarioRepository usuarioRepository;
     private final ImagenUploadValidator imagenUploadValidator;
+    private final ConsumoDirectoStrategy consumoDirecto;
+    private final ConsumoEnComboStrategy consumoEnCombo;
 
     public VentaServiceImpl(VentaRepository ventaRepository,
                              ClienteRepository clienteRepository,
@@ -72,7 +75,9 @@ public class VentaServiceImpl implements VentaService {
                              InsumoRepository insumoRepository,
                              VentaEstadoHistorialRepository ventaEstadoHistorialRepository,
                              UsuarioRepository usuarioRepository,
-                             ImagenUploadValidator imagenUploadValidator) {
+                             ImagenUploadValidator imagenUploadValidator,
+                             ConsumoDirectoStrategy consumoDirecto,
+                             ConsumoEnComboStrategy consumoEnCombo) {
         this.ventaRepository = ventaRepository;
         this.clienteRepository = clienteRepository;
         this.productoRepository = productoRepository;
@@ -80,6 +85,8 @@ public class VentaServiceImpl implements VentaService {
         this.ventaEstadoHistorialRepository = ventaEstadoHistorialRepository;
         this.usuarioRepository = usuarioRepository;
         this.imagenUploadValidator = imagenUploadValidator;
+        this.consumoDirecto = consumoDirecto;
+        this.consumoEnCombo = consumoEnCombo;
     }
 
     @Override
@@ -283,12 +290,9 @@ public class VentaServiceImpl implements VentaService {
 
         validarStockSuficiente(cantidadPorProducto, productos);
 
-        for (Map.Entry<Long, Integer> entry : cantidadPorProducto.entrySet()) {
-            Producto producto = productos.get(entry.getKey());
-            if (producto.getInsumos().isEmpty()) {
-                producto.setStock(producto.getStock() - entry.getValue());
-                productoRepository.save(producto);
-            }
+        for (Map.Entry<Producto, Integer> entry : demandaStockPropio(cantidadPorProducto, productos).entrySet()) {
+            entry.getKey().setStock(entry.getKey().getStock() - entry.getValue());
+            productoRepository.save(entry.getKey());
         }
         aplicarConsumoInsumos(cantidadPorProducto, productos, false);
     }
@@ -300,14 +304,43 @@ public class VentaServiceImpl implements VentaService {
         Map<Long, Integer> cantidadPorProducto = cantidadPorProducto(venta);
         Map<Long, Producto> productos = resolverProductos(cantidadPorProducto.keySet(), empresaId);
 
-        for (Map.Entry<Long, Integer> entry : cantidadPorProducto.entrySet()) {
-            Producto producto = productos.get(entry.getKey());
-            if (producto.getInsumos().isEmpty()) {
-                producto.setStock(producto.getStock() + entry.getValue());
-                productoRepository.save(producto);
-            }
+        for (Map.Entry<Producto, Integer> entry : demandaStockPropio(cantidadPorProducto, productos).entrySet()) {
+            entry.getKey().setStock(entry.getKey().getStock() + entry.getValue());
+            productoRepository.save(entry.getKey());
         }
         aplicarConsumoInsumos(cantidadPorProducto, productos, true);
+    }
+
+    // Demanda de stock PROPIO por producto físico, expandiendo kits: para un
+    // producto simple sin receta es su propia cantidad vendida (idéntico al
+    // comportamiento de siempre); para un kit, la demanda cae sobre sus
+    // COMPONENTES sin receta (cantidad del componente × cantidad vendida del
+    // kit) — el kit en sí nunca mueve Producto.stock, se arma al momento.
+    // Se agrega por id con merge(): el mismo producto puede aparecer vendido
+    // suelto Y como componente de un kit en la misma venta, y la demanda
+    // combinada tiene que validarse/descontarse junta (mismo motivo por el
+    // que cantidadPorProducto agrupa líneas repetidas).
+    private Map<Producto, Integer> demandaStockPropio(Map<Long, Integer> cantidadPorProducto, Map<Long, Producto> productos) {
+        Map<Long, Producto> porId = new LinkedHashMap<>();
+        Map<Long, Integer> cantidades = new LinkedHashMap<>();
+        for (Map.Entry<Long, Integer> entry : cantidadPorProducto.entrySet()) {
+            Producto producto = productos.get(entry.getKey());
+            if (esKit(producto)) {
+                for (ProductoComponente componente : producto.getComponentes()) {
+                    Producto delKit = componente.getComponenteProducto();
+                    if (delKit.getInsumos().isEmpty()) {
+                        porId.putIfAbsent(delKit.getId(), delKit);
+                        cantidades.merge(delKit.getId(), componente.getCantidad() * entry.getValue(), Integer::sum);
+                    }
+                }
+            } else if (producto.getInsumos().isEmpty()) {
+                porId.putIfAbsent(producto.getId(), producto);
+                cantidades.merge(producto.getId(), entry.getValue(), Integer::sum);
+            }
+        }
+        Map<Producto, Integer> demanda = new LinkedHashMap<>();
+        cantidades.forEach((id, cantidad) -> demanda.put(porId.get(id), cantidad));
+        return demanda;
     }
 
     // Valida que haya stock suficiente para la demanda total de la venta.
@@ -325,10 +358,12 @@ public class VentaServiceImpl implements VentaService {
     //      caso donde ninguno individualmente supera el stock pero la suma
     //      de ambos sí.
     private void validarStockSuficiente(Map<Long, Integer> cantidadPorProducto, Map<Long, Producto> productos) {
-        for (Map.Entry<Long, Integer> entry : cantidadPorProducto.entrySet()) {
-            Producto producto = productos.get(entry.getKey());
-            if (producto.getInsumos().isEmpty() && producto.getStock() < entry.getValue()) {
-                throw new StockInsuficienteException(producto.getNombre(), producto.getStock(), entry.getValue());
+        // demandaStockPropio ya expande kits a sus componentes y agrega
+        // demanda combinada — para productos simples sin receta produce
+        // exactamente las mismas entradas que el chequeo directo de antes.
+        for (Map.Entry<Producto, Integer> entry : demandaStockPropio(cantidadPorProducto, productos).entrySet()) {
+            if (entry.getKey().getStock() < entry.getValue()) {
+                throw new StockInsuficienteException(entry.getKey().getNombre(), entry.getKey().getStock(), entry.getValue());
             }
         }
 
@@ -362,26 +397,46 @@ public class VentaServiceImpl implements VentaService {
         }
     }
 
-    // Suma, por insumoId, cuánto consume la venta de ese insumo: recorre
-    // solo los productos CON receta de la venta y, por cada línea de su
-    // receta, acumula (cantidad de la receta × cantidad vendida del
-    // producto). Un mismo insumo puede aparecer en la receta de varios
-    // productos de la misma venta (o más de una vez si el producto lo
-    // repite) — merge() lo suma en vez de pisarlo.
+    // Suma, por insumoId, cuánto consume la venta de ese insumo. Un mismo
+    // insumo puede aparecer en la receta de varios productos de la misma
+    // venta (o más de una vez si el producto lo repite) — merge() lo suma en
+    // vez de pisarlo. Tres orígenes de consumo:
+    //   - Producto simple CON receta vendido suelto: su receta completa
+    //     (ConsumoDirectoStrategy — embalaje incluido, como siempre).
+    //   - Kit: su receta directa propia completa (el embalaje compartido del
+    //     combo) + por cada componente, la receta del componente SIN
+    //     embalaje (ConsumoEnComboStrategy) × cantidad del componente en el
+    //     kit — el kit pone una sola bolsa, los componentes no repiten la
+    //     suya. Límite de esta fase: un componente que a su vez sea kit se
+    //     trata como producto simple (no se recorre su composición anidada).
+    //   - Producto simple SIN receta: no consume insumos (su demanda va por
+    //     demandaStockPropio).
     private Map<Long, BigDecimal> consumoPorInsumo(Map<Long, Integer> cantidadPorProducto, Map<Long, Producto> productos) {
         Map<Long, BigDecimal> consumo = new LinkedHashMap<>();
         for (Map.Entry<Long, Integer> entry : cantidadPorProducto.entrySet()) {
             Producto producto = productos.get(entry.getKey());
-            if (producto.getInsumos().isEmpty()) {
-                continue;
-            }
             BigDecimal cantidadVenta = BigDecimal.valueOf(entry.getValue());
-            for (ProductoInsumo productoInsumo : producto.getInsumos()) {
-                consumo.merge(productoInsumo.getInsumo().getId(),
-                        productoInsumo.getCantidad().multiply(cantidadVenta), BigDecimal::add);
+            if (esKit(producto)) {
+                acumularConsumo(consumo, consumoDirecto.resolver(producto), cantidadVenta);
+                for (ProductoComponente componente : producto.getComponentes()) {
+                    BigDecimal multiplicador = cantidadVenta.multiply(BigDecimal.valueOf(componente.getCantidad()));
+                    acumularConsumo(consumo, consumoEnCombo.resolver(componente.getComponenteProducto()), multiplicador);
+                }
+            } else if (!producto.getInsumos().isEmpty()) {
+                acumularConsumo(consumo, consumoDirecto.resolver(producto), cantidadVenta);
             }
         }
         return consumo;
+    }
+
+    private void acumularConsumo(Map<Long, BigDecimal> consumo, List<ProductoInsumo> lineas, BigDecimal multiplicador) {
+        for (ProductoInsumo linea : lineas) {
+            consumo.merge(linea.getInsumo().getId(), linea.getCantidad().multiply(multiplicador), BigDecimal::add);
+        }
+    }
+
+    private boolean esKit(Producto producto) {
+        return !producto.getComponentes().isEmpty();
     }
 
     // Resuelve, en un solo mapa, los productos referenciados por la venta

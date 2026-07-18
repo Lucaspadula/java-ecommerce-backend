@@ -82,6 +82,14 @@ public class Producto {
     @OneToMany(mappedBy = "producto", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     private List<ProductoInsumo> insumos = new ArrayList<>();
 
+    // Composite: un producto con componentes es un "kit" que agrupa otros
+    // productos terminados (ej. Combo = 1 Mate + 1 Termo). Lista vacía =
+    // producto simple, comportamiento de siempre — TODO el código de
+    // stock/venta ramifica explícitamente en ese chequeo antes de tocar el
+    // camino del kit (ver VentaServiceImpl y StockDisponibleCalculator).
+    @OneToMany(mappedBy = "producto", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    private List<ProductoComponente> componentes = new ArrayList<>();
+
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 
@@ -129,4 +137,7 @@ public class Producto {
 
     public List<ProductoInsumo> getInsumos() { return insumos; }
     public void setInsumos(List<ProductoInsumo> insumos) { this.insumos = insumos; }
+
+    public List<ProductoComponente> getComponentes() { return componentes; }
+    public void setComponentes(List<ProductoComponente> componentes) { this.componentes = componentes; }
 }
