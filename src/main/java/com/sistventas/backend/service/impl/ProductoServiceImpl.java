@@ -8,12 +8,15 @@ import com.sistventas.backend.dto.ProductoDto;
 import com.sistventas.backend.dto.ProductoInsumoDto;
 import com.sistventas.backend.dto.ProductoInsumoRequest;
 import com.sistventas.backend.dto.ProductoRequest;
+import com.sistventas.backend.dto.ProductoVarianteDto;
+import com.sistventas.backend.dto.ProductoVarianteRequest;
 import com.sistventas.backend.dto.ResenaDto;
 import com.sistventas.backend.dto.TipoAjustePrecio;
 import com.sistventas.backend.entity.Categoria;
 import com.sistventas.backend.entity.Insumo;
 import com.sistventas.backend.entity.Producto;
 import com.sistventas.backend.entity.ProductoInsumo;
+import com.sistventas.backend.entity.ProductoVariante;
 import com.sistventas.backend.entity.Resena;
 import com.sistventas.backend.entity.Subcategoria;
 import com.sistventas.backend.exception.ArchivoInvalidoException;
@@ -42,8 +45,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 public class ProductoServiceImpl implements ProductoService {
@@ -105,7 +111,7 @@ public class ProductoServiceImpl implements ProductoService {
         producto.setFechaAlta(LocalDateTime.now());
         aplicarDatosComunes(producto, request.nombre(), request.categoriaId(), request.subcategoriaId(),
                 request.descripcion(), request.precioVenta(), request.precioPorMayor(),
-                request.cantidadMinimaMayorista(), request.insumos(), empresaId);
+                request.cantidadMinimaMayorista(), request.insumos(), request.variantes(), empresaId);
         // Sin stock inicial a mano: todo producto se compone de insumos, así
         // que su disponible sale siempre de StockDisponibleCalculator en
         // base al stock de esos insumos.
@@ -120,7 +126,7 @@ public class ProductoServiceImpl implements ProductoService {
         Producto producto = buscarPorEmpresa(id, principal);
         aplicarDatosComunes(producto, request.nombre(), request.categoriaId(), request.subcategoriaId(),
                 request.descripcion(), request.precioVenta(), request.precioPorMayor(),
-                request.cantidadMinimaMayorista(), request.insumos(), empresaId);
+                request.cantidadMinimaMayorista(), request.insumos(), request.variantes(), empresaId);
         return toDto(productoRepository.save(producto));
     }
 
@@ -303,7 +309,8 @@ public class ProductoServiceImpl implements ProductoService {
     private void aplicarDatosComunes(Producto producto, String nombre, Long categoriaId, Long subcategoriaId,
                                       String descripcion, BigDecimal precioVenta, BigDecimal precioPorMayor,
                                       Integer cantidadMinimaMayorista,
-                                      List<ProductoInsumoRequest> insumosRequest, Long empresaId) {
+                                      List<ProductoInsumoRequest> insumosRequest,
+                                      List<ProductoVarianteRequest> variantesRequest, Long empresaId) {
         producto.setNombre(nombre);
         producto.setCategoria(buscarCategoriaPorEmpresa(categoriaId, empresaId));
         producto.setSubcategoria(subcategoriaId != null
@@ -330,6 +337,38 @@ public class ProductoServiceImpl implements ProductoService {
             productoInsumo.setCantidad(insumoRequest.cantidad());
             producto.getInsumos().add(productoInsumo);
         }
+
+        aplicarVariantes(producto, variantesRequest);
+    }
+
+    // A diferencia de insumos (reemplazo completo arriba), acá se hace un
+    // MERGE por id: una ProductoVariante no es una línea de receta, ES la
+    // fuente de stock que VentaServiceImpl descuenta directo vía
+    // VentaItem.varianteId. Si se recreara cada fila en cada edición (clear +
+    // agregar todas nuevas), una venta ya cargada quedaría apuntando a una
+    // fila borrada. Las filas con id existente se actualizan in-place, las
+    // sin id (nuevas) se crean, y las que ya no vienen en la request se dan
+    // de baja (orphanRemoval=true en Producto.variantes).
+    private void aplicarVariantes(Producto producto, List<ProductoVarianteRequest> variantesRequest) {
+        List<ProductoVarianteRequest> requests = variantesRequest != null ? variantesRequest : List.of();
+        Map<Long, ProductoVariante> existentesPorId = producto.getVariantes().stream()
+                .collect(Collectors.toMap(ProductoVariante::getId, v -> v));
+
+        List<ProductoVariante> resultado = new ArrayList<>();
+        for (ProductoVarianteRequest varianteRequest : requests) {
+            ProductoVariante variante = varianteRequest.id() != null ? existentesPorId.get(varianteRequest.id()) : null;
+            if (variante == null) {
+                variante = new ProductoVariante();
+                variante.setProducto(producto);
+            }
+            variante.setColor(varianteRequest.color());
+            variante.setStock(varianteRequest.stock());
+            variante.setFotoUrl(varianteRequest.fotoUrl());
+            resultado.add(variante);
+        }
+
+        producto.getVariantes().clear();
+        producto.getVariantes().addAll(resultado);
     }
 
     private Insumo buscarInsumoPorEmpresa(Long insumoId, Long empresaId) {
@@ -370,6 +409,9 @@ public class ProductoServiceImpl implements ProductoService {
         List<ProductoInsumoDto> insumos = producto.getInsumos().stream()
                 .map(this::toProductoInsumoDto)
                 .toList();
+        List<ProductoVarianteDto> variantes = producto.getVariantes().stream()
+                .map(this::toProductoVarianteDto)
+                .toList();
 
         return new ProductoDto(
                 producto.getId(),
@@ -394,8 +436,13 @@ public class ProductoServiceImpl implements ProductoService {
                 // para el criterio completo.
                 stockDisponibleCalculator.calcular(producto),
                 calcularCostoUnitario(insumos),
-                insumos
+                insumos,
+                variantes
         );
+    }
+
+    private ProductoVarianteDto toProductoVarianteDto(ProductoVariante variante) {
+        return new ProductoVarianteDto(variante.getId(), variante.getColor(), variante.getStock(), variante.getFotoUrl());
     }
 
     // Todo producto se compone de insumos, así que el costo es siempre la

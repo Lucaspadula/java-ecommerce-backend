@@ -90,6 +90,16 @@ public class Producto {
     @OneToMany(mappedBy = "producto", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     private List<ProductoComponente> componentes = new ArrayList<>();
 
+    // Variantes de color (Etapa 1): lista vacía = producto simple, stock
+    // propio de siempre (campo `stock` de arriba), sin ningún cambio — mismo
+    // criterio de ramificar explícitamente que insumos/componentes (ver
+    // StockDisponibleCalculator y VentaServiceImpl). La receta de insumos de
+    // este producto (si tiene) sigue siendo COMPARTIDA entre todas las
+    // variantes: no se duplica por color, solo el stock puntual se cuenta
+    // aparte por variante.
+    @OneToMany(mappedBy = "producto", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    private List<ProductoVariante> variantes = new ArrayList<>();
+
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 
@@ -140,4 +150,7 @@ public class Producto {
 
     public List<ProductoComponente> getComponentes() { return componentes; }
     public void setComponentes(List<ProductoComponente> componentes) { this.componentes = componentes; }
+
+    public List<ProductoVariante> getVariantes() { return variantes; }
+    public void setVariantes(List<ProductoVariante> variantes) { this.variantes = variantes; }
 }

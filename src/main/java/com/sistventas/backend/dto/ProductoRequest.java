@@ -41,5 +41,12 @@ public record ProductoRequest(
         // siempre de la receta (ver ProductoServiceImpl).
         @NotEmpty(message = "El producto necesita al menos un artículo")
         @Valid
-        List<ProductoInsumoRequest> insumos
+        List<ProductoInsumoRequest> insumos,
+
+        // Opcional: no todo producto tiene variantes de color. Lista vacía o
+        // null = producto simple, stock propio de siempre (ver
+        // ProductoServiceImpl y StockDisponibleCalculator, que ramifican
+        // explícitamente en este chequeo antes de tocar el camino existente).
+        @Valid
+        List<ProductoVarianteRequest> variantes
 ) {}

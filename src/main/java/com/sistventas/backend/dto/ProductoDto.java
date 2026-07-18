@@ -29,5 +29,8 @@ public record ProductoDto(
         // Calculado, no persistido: siempre la suma de insumos[].subtotal —
         // centraliza en el backend un cálculo que antes hacía el frontend.
         BigDecimal costoUnitario,
-        List<ProductoInsumoDto> insumos
+        List<ProductoInsumoDto> insumos,
+        // Variantes de color (Etapa 1): lista vacía = producto simple, stock
+        // propio de siempre (ver Producto.variantes).
+        List<ProductoVarianteDto> variantes
 ) {}

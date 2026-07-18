@@ -14,6 +14,7 @@ import com.sistventas.backend.entity.Insumo;
 import com.sistventas.backend.entity.Producto;
 import com.sistventas.backend.entity.ProductoComponente;
 import com.sistventas.backend.entity.ProductoInsumo;
+import com.sistventas.backend.entity.ProductoVariante;
 import com.sistventas.backend.entity.Usuario;
 import com.sistventas.backend.entity.Venta;
 import com.sistventas.backend.entity.VentaEstadoHistorial;
@@ -26,6 +27,7 @@ import com.sistventas.backend.exception.VentaNoEncontradaException;
 import com.sistventas.backend.repository.ClienteRepository;
 import com.sistventas.backend.repository.InsumoRepository;
 import com.sistventas.backend.repository.ProductoRepository;
+import com.sistventas.backend.repository.ProductoVarianteRepository;
 import com.sistventas.backend.repository.UsuarioRepository;
 import com.sistventas.backend.repository.VentaEstadoHistorialRepository;
 import com.sistventas.backend.repository.VentaRepository;
@@ -63,6 +65,7 @@ public class VentaServiceImpl implements VentaService {
     private final ClienteRepository clienteRepository;
     private final ProductoRepository productoRepository;
     private final InsumoRepository insumoRepository;
+    private final ProductoVarianteRepository productoVarianteRepository;
     private final VentaEstadoHistorialRepository ventaEstadoHistorialRepository;
     private final UsuarioRepository usuarioRepository;
     private final ImagenUploadValidator imagenUploadValidator;
@@ -73,6 +76,7 @@ public class VentaServiceImpl implements VentaService {
                              ClienteRepository clienteRepository,
                              ProductoRepository productoRepository,
                              InsumoRepository insumoRepository,
+                             ProductoVarianteRepository productoVarianteRepository,
                              VentaEstadoHistorialRepository ventaEstadoHistorialRepository,
                              UsuarioRepository usuarioRepository,
                              ImagenUploadValidator imagenUploadValidator,
@@ -82,6 +86,7 @@ public class VentaServiceImpl implements VentaService {
         this.clienteRepository = clienteRepository;
         this.productoRepository = productoRepository;
         this.insumoRepository = insumoRepository;
+        this.productoVarianteRepository = productoVarianteRepository;
         this.ventaEstadoHistorialRepository = ventaEstadoHistorialRepository;
         this.usuarioRepository = usuarioRepository;
         this.imagenUploadValidator = imagenUploadValidator;
@@ -288,11 +293,15 @@ public class VentaServiceImpl implements VentaService {
         Map<Long, Integer> cantidadPorProducto = cantidadPorProducto(venta);
         Map<Long, Producto> productos = resolverProductos(cantidadPorProducto.keySet(), empresaId);
 
-        validarStockSuficiente(cantidadPorProducto, productos);
+        validarStockSuficiente(venta, cantidadPorProducto, productos);
 
         for (Map.Entry<Producto, Integer> entry : demandaStockPropio(cantidadPorProducto, productos).entrySet()) {
             entry.getKey().setStock(entry.getKey().getStock() - entry.getValue());
             productoRepository.save(entry.getKey());
+        }
+        for (Map.Entry<ProductoVariante, Integer> entry : demandaPorVariante(venta, productos).entrySet()) {
+            entry.getKey().setStock(entry.getKey().getStock() - entry.getValue());
+            productoVarianteRepository.save(entry.getKey());
         }
         aplicarConsumoInsumos(cantidadPorProducto, productos, false);
     }
@@ -308,6 +317,10 @@ public class VentaServiceImpl implements VentaService {
             entry.getKey().setStock(entry.getKey().getStock() + entry.getValue());
             productoRepository.save(entry.getKey());
         }
+        for (Map.Entry<ProductoVariante, Integer> entry : demandaPorVariante(venta, productos).entrySet()) {
+            entry.getKey().setStock(entry.getKey().getStock() + entry.getValue());
+            productoVarianteRepository.save(entry.getKey());
+        }
         aplicarConsumoInsumos(cantidadPorProducto, productos, true);
     }
 
@@ -320,6 +333,14 @@ public class VentaServiceImpl implements VentaService {
     // suelto Y como componente de un kit en la misma venta, y la demanda
     // combinada tiene que validarse/descontarse junta (mismo motivo por el
     // que cantidadPorProducto agrupa líneas repetidas).
+    //
+    // Un producto CON variantes de color queda afuera de este cálculo (ver
+    // chequeo producto.getVariantes().isEmpty()): su stock no vive en
+    // Producto.stock sino en cada ProductoVariante puntual, que se resuelve
+    // aparte en demandaPorVariante. Límite conocido de esta fase: un
+    // componente de kit con variantes cargadas se trata igual que hoy (se
+    // ignora acá, no mueve Producto.stock ni el de ninguna variante) — elegir
+    // variante dentro de un kit queda fuera de esta etapa.
     private Map<Producto, Integer> demandaStockPropio(Map<Long, Integer> cantidadPorProducto, Map<Long, Producto> productos) {
         Map<Long, Producto> porId = new LinkedHashMap<>();
         Map<Long, Integer> cantidades = new LinkedHashMap<>();
@@ -333,13 +354,46 @@ public class VentaServiceImpl implements VentaService {
                         cantidades.merge(delKit.getId(), componente.getCantidad() * entry.getValue(), Integer::sum);
                     }
                 }
-            } else if (producto.getInsumos().isEmpty()) {
+            } else if (producto.getInsumos().isEmpty() && producto.getVariantes().isEmpty()) {
                 porId.putIfAbsent(producto.getId(), producto);
                 cantidades.merge(producto.getId(), entry.getValue(), Integer::sum);
             }
         }
         Map<Producto, Integer> demanda = new LinkedHashMap<>();
         cantidades.forEach((id, cantidad) -> demanda.put(porId.get(id), cantidad));
+        return demanda;
+    }
+
+    // Demanda de stock POR VARIANTE: para un item que vendió una variante de
+    // color puntual (VentaItem.varianteId no nulo), el stock a mover es el de
+    // ESA fila, no el de Producto.stock (que para estos productos ni se toca,
+    // ver demandaStockPropio). La receta compartida del producto (si tiene)
+    // sigue consumiéndose igual que siempre vía consumoPorInsumo/
+    // aplicarConsumoInsumos, sin cambios acá. Se agrupa por varianteId (no
+    // por producto): dos items de la misma venta pueden vender colores
+    // distintos del mismo producto, y cada uno mueve su propia fila.
+    private Map<ProductoVariante, Integer> demandaPorVariante(Venta venta, Map<Long, Producto> productos) {
+        Map<Long, ProductoVariante> variantesPorId = new LinkedHashMap<>();
+        for (Producto producto : productos.values()) {
+            for (ProductoVariante variante : producto.getVariantes()) {
+                variantesPorId.put(variante.getId(), variante);
+            }
+        }
+
+        Map<Long, Integer> cantidadPorVarianteId = venta.getItems().stream()
+                .filter(item -> item.getVarianteId() != null)
+                .collect(java.util.stream.Collectors.groupingBy(
+                        VentaItem::getVarianteId,
+                        java.util.stream.Collectors.summingInt(VentaItem::getCantidad)));
+
+        Map<ProductoVariante, Integer> demanda = new LinkedHashMap<>();
+        cantidadPorVarianteId.forEach((varianteId, cantidad) -> {
+            ProductoVariante variante = variantesPorId.get(varianteId);
+            if (variante == null) {
+                throw new ProductoNoEncontradoException();
+            }
+            demanda.put(variante, cantidad);
+        });
         return demanda;
     }
 
@@ -357,13 +411,26 @@ public class VentaServiceImpl implements VentaService {
     //      separado contra el stock "actual" del insumo dejaría pasar un
     //      caso donde ninguno individualmente supera el stock pero la suma
     //      de ambos sí.
-    private void validarStockSuficiente(Map<Long, Integer> cantidadPorProducto, Map<Long, Producto> productos) {
+    private void validarStockSuficiente(Venta venta, Map<Long, Integer> cantidadPorProducto, Map<Long, Producto> productos) {
         // demandaStockPropio ya expande kits a sus componentes y agrega
         // demanda combinada — para productos simples sin receta produce
         // exactamente las mismas entradas que el chequeo directo de antes.
         for (Map.Entry<Producto, Integer> entry : demandaStockPropio(cantidadPorProducto, productos).entrySet()) {
             if (entry.getKey().getStock() < entry.getValue()) {
                 throw new StockInsuficienteException(entry.getKey().getNombre(), entry.getKey().getStock(), entry.getValue());
+            }
+        }
+
+        // Productos con variantes de color: cada variante valida contra SU
+        // PROPIO stock (no el de Producto, que para estos productos no se
+        // usa — ver demandaStockPropio). El nombre en el mensaje de error
+        // incluye el color para que quede claro cuál variante no alcanza.
+        for (Map.Entry<ProductoVariante, Integer> entry : demandaPorVariante(venta, productos).entrySet()) {
+            ProductoVariante variante = entry.getKey();
+            if (variante.getStock() < entry.getValue()) {
+                throw new StockInsuficienteException(
+                        variante.getProducto().getNombre() + " (" + variante.getColor() + ")",
+                        variante.getStock(), entry.getValue());
             }
         }
 
@@ -563,6 +630,7 @@ public class VentaServiceImpl implements VentaService {
             item.setPersonalizacion(itemRequest.personalizacion());
             item.setSubtotal(subtotalItem);
             item.setFotoUrl(itemRequest.fotoUrl());
+            item.setVarianteId(itemRequest.varianteId());
             venta.getItems().add(item);
 
             subtotal = subtotal.add(subtotalItem);
@@ -665,7 +733,8 @@ public class VentaServiceImpl implements VentaService {
                 item.getPrecioUnitario(),
                 item.getPersonalizacion(),
                 item.getSubtotal(),
-                item.getFotoUrl()
+                item.getFotoUrl(),
+                item.getVarianteId()
         );
     }
 }

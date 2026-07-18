@@ -3,6 +3,7 @@ package com.sistventas.backend.service.impl;
 import com.sistventas.backend.entity.Producto;
 import com.sistventas.backend.entity.ProductoComponente;
 import com.sistventas.backend.entity.ProductoInsumo;
+import com.sistventas.backend.entity.ProductoVariante;
 import org.springframework.stereotype.Component;
 
 import java.math.RoundingMode;
@@ -30,6 +31,16 @@ import java.util.List;
 //   (sin embalaje, ver ConsumoEnComboStrategy). Límite conocido de esta
 //   fase: un componente que a su vez sea kit se evalúa como producto simple
 //   (no se recorre su propia composición) — kits de un solo nivel.
+// - Producto con VARIANTES de color (Etapa 1): cada variante tiene su
+//   propio stock cargado a mano, pero la receta de insumos del producto (si
+//   tiene) sigue siendo COMPARTIDA entre todas — una bolsa de embalaje
+//   limita el total sin importar el color elegido. El disponible de UNA
+//   variante es el mínimo entre su propio stock y lo que alcanza esa receta
+//   compartida (mismo criterio de "doble límite" que un componente de kit);
+//   el disponible TOTAL del producto (para catálogo/listado) es la SUMA de
+//   ese mínimo sobre todas las variantes. Límite conocido de esta fase: no
+//   se mezcla con el mecanismo de kit — un producto con variantes usado como
+//   componente de kit se trata como producto simple (ver VentaServiceImpl).
 @Component
 public class StockDisponibleCalculator {
 
@@ -43,10 +54,23 @@ public class StockDisponibleCalculator {
         if (!producto.getComponentes().isEmpty()) {
             return calcularKit(producto);
         }
+        if (!producto.getVariantes().isEmpty()) {
+            return calcularConVariantes(producto);
+        }
         if (producto.getInsumos().isEmpty()) {
             return producto.getStock();
         }
         return minimoPorReceta(producto.getInsumos());
+    }
+
+    private int calcularConVariantes(Producto producto) {
+        if (producto.getInsumos().isEmpty()) {
+            return producto.getVariantes().stream().mapToInt(ProductoVariante::getStock).sum();
+        }
+        int limiteReceta = minimoPorReceta(producto.getInsumos());
+        return producto.getVariantes().stream()
+                .mapToInt(variante -> Math.min(variante.getStock(), limiteReceta))
+                .sum();
     }
 
     private int calcularKit(Producto kit) {

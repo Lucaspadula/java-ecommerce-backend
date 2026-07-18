@@ -46,6 +46,15 @@ public class VentaItem {
     @Column(name = "foto_url")
     private String fotoUrl;
 
+    // Qué variante de color puntual se vendió (nullable): null para
+    // productos sin variantes, comportamiento de siempre sin cambios. FK
+    // plana sin @ManyToOne ni constraint de BD a propósito — ver
+    // V34__producto_variante.sql. Determina si VentaServiceImpl descuenta el
+    // stock de la variante puntual o el del producto (ver
+    // VentaServiceImpl.demandaPorVariante).
+    @Column(name = "variante_id")
+    private Long varianteId;
+
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 
@@ -72,4 +81,7 @@ public class VentaItem {
 
     public String getFotoUrl() { return fotoUrl; }
     public void setFotoUrl(String fotoUrl) { this.fotoUrl = fotoUrl; }
+
+    public Long getVarianteId() { return varianteId; }
+    public void setVarianteId(Long varianteId) { this.varianteId = varianteId; }
 }

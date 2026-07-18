@@ -10,5 +10,6 @@ public record VentaItemDto(
         BigDecimal precioUnitario,
         String personalizacion,
         BigDecimal subtotal,
-        String fotoUrl
+        String fotoUrl,
+        Long varianteId
 ) {}

@@ -23,5 +23,11 @@ public record VentaItemRequest(
 
         // Url devuelta por POST /api/ventas/fotos, tal cual la manda el
         // frontend; null si el item no tiene foto de referencia.
-        String fotoUrl
+        String fotoUrl,
+
+        // Qué variante de color se eligió (nullable): null para productos
+        // sin variantes, comportamiento de siempre sin cambios. La elige el
+        // cliente en la tienda pública (Etapa 2, no implementada todavía) —
+        // acá solo se acepta y persiste el dato (ver VentaServiceImpl).
+        Long varianteId
 ) {}

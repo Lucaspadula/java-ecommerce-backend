@@ -42,5 +42,10 @@ public record ActualizarProductoRequest(
         // ProductoRequest.
         @NotEmpty(message = "El producto necesita al menos un artículo")
         @Valid
-        List<ProductoInsumoRequest> insumos
+        List<ProductoInsumoRequest> insumos,
+
+        // Opcional: no todo producto tiene variantes de color — ver
+        // ProductoRequest.
+        @Valid
+        List<ProductoVarianteRequest> variantes
 ) {}
