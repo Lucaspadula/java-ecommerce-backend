@@ -55,6 +55,13 @@ public class VentaItem {
     @Column(name = "variante_id")
     private Long varianteId;
 
+    // Snapshot del color al momento de la venta (mismo criterio que
+    // productoNombre): si el color se borra o se renombra en el form de
+    // Producto después, el mensaje de WhatsApp de una venta vieja (ver
+    // VentaServiceImpl.construirTextoCompartir) no debe cambiar ni romperse.
+    @Column(name = "variante_color", length = 60)
+    private String varianteColor;
+
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 
@@ -84,4 +91,7 @@ public class VentaItem {
 
     public Long getVarianteId() { return varianteId; }
     public void setVarianteId(Long varianteId) { this.varianteId = varianteId; }
+
+    public String getVarianteColor() { return varianteColor; }
+    public void setVarianteColor(String varianteColor) { this.varianteColor = varianteColor; }
 }

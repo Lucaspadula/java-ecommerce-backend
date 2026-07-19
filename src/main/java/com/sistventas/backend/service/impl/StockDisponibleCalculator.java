@@ -64,13 +64,22 @@ public class StockDisponibleCalculator {
     }
 
     private int calcularConVariantes(Producto producto) {
-        if (producto.getInsumos().isEmpty()) {
-            return producto.getVariantes().stream().mapToInt(ProductoVariante::getStock).sum();
-        }
-        int limiteReceta = minimoPorReceta(producto.getInsumos());
         return producto.getVariantes().stream()
-                .mapToInt(variante -> Math.min(variante.getStock(), limiteReceta))
+                .mapToInt(this::calcularVariante)
                 .sum();
+    }
+
+    // Disponible de UNA variante puntual (Etapa 2: la tienda pública necesita
+    // este número por color, no solo el total sumado que ya daba `calcular`).
+    // Mismo criterio de doble límite que calcularConVariantes: si el producto
+    // no tiene receta, el stock propio de la variante manda solo; si tiene,
+    // también corre contra el límite de la receta compartida.
+    public int calcularVariante(ProductoVariante variante) {
+        Producto producto = variante.getProducto();
+        if (producto.getInsumos().isEmpty()) {
+            return variante.getStock();
+        }
+        return Math.min(variante.getStock(), minimoPorReceta(producto.getInsumos()));
     }
 
     private int calcularKit(Producto kit) {

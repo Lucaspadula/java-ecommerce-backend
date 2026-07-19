@@ -579,8 +579,11 @@ public class VentaServiceImpl implements VentaService {
         }
         sb.append("--------------------------------\n");
         for (VentaItem item : venta.getItems()) {
-            sb.append(item.getCantidad()).append("x ").append(item.getProductoNombre())
-                    .append(" — $").append(formatMonto(item.getSubtotal())).append("\n");
+            sb.append(item.getCantidad()).append("x ").append(item.getProductoNombre());
+            if (item.getVarianteColor() != null) {
+                sb.append(" (").append(item.getVarianteColor()).append(")");
+            }
+            sb.append(" — $").append(formatMonto(item.getSubtotal())).append("\n");
             if (item.getPersonalizacion() != null && !item.getPersonalizacion().isBlank()) {
                 sb.append("   ✎ ").append(item.getPersonalizacion()).append("\n");
             }
@@ -734,7 +737,8 @@ public class VentaServiceImpl implements VentaService {
                 item.getPersonalizacion(),
                 item.getSubtotal(),
                 item.getFotoUrl(),
-                item.getVarianteId()
+                item.getVarianteId(),
+                item.getVarianteColor()
         );
     }
 }

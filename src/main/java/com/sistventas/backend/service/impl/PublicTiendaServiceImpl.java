@@ -13,6 +13,7 @@ import com.sistventas.backend.dto.PublicPedidoResultadoDto;
 import com.sistventas.backend.dto.PublicProductoDto;
 import com.sistventas.backend.dto.PublicTestimonioDto;
 import com.sistventas.backend.dto.PublicTipDto;
+import com.sistventas.backend.dto.PublicVarianteDto;
 import com.sistventas.backend.dto.ResenaDestacadaDto;
 import com.sistventas.backend.dto.ResenaDto;
 import com.sistventas.backend.entity.Categoria;
@@ -20,6 +21,7 @@ import com.sistventas.backend.entity.Cliente;
 import com.sistventas.backend.entity.Empresa;
 import com.sistventas.backend.entity.EstadoVenta;
 import com.sistventas.backend.entity.Producto;
+import com.sistventas.backend.entity.ProductoVariante;
 import com.sistventas.backend.entity.ReglaDescuentoCombo;
 import com.sistventas.backend.entity.Resena;
 import com.sistventas.backend.entity.Subcategoria;
@@ -28,6 +30,7 @@ import com.sistventas.backend.entity.TiendaCategoria;
 import com.sistventas.backend.entity.TiendaTestimonio;
 import com.sistventas.backend.entity.Venta;
 import com.sistventas.backend.entity.VentaItem;
+import com.sistventas.backend.exception.AccionNoPermitidaException;
 import com.sistventas.backend.exception.CuponInvalidoException;
 import com.sistventas.backend.exception.ProductoNoEncontradoException;
 import com.sistventas.backend.exception.StockInsuficienteException;
@@ -259,12 +262,34 @@ public class PublicTiendaServiceImpl implements PublicTiendaService {
         for (PublicPedidoItemRequest itemRequest : request.items()) {
             Producto producto = buscarProductoActivo(itemRequest.productoId(), empresaId);
 
-            // Mismo criterio que el catálogo (listarProductos): para
-            // productos con receta, el disponible sale del stock de
-            // insumos, no de Producto.stock.
-            int disponible = stockDisponibleCalculator.calcular(producto);
-            if (disponible < itemRequest.cantidad()) {
-                throw new StockInsuficienteException(producto.getNombre(), disponible, itemRequest.cantidad());
+            // Producto con variantes de color: el cliente tiene que haber
+            // elegido una (varianteId obligatorio acá, no a nivel DTO, porque
+            // depende de si ESTE producto tiene variantes cargadas). El
+            // disponible/precio salen de la variante puntual, no del total
+            // del producto — dos colores del mismo mate no comparten stock.
+            ProductoVariante variante = null;
+            int disponible;
+            if (!producto.getVariantes().isEmpty()) {
+                if (itemRequest.varianteId() == null) {
+                    throw new AccionNoPermitidaException("Elegí un color para " + producto.getNombre());
+                }
+                variante = producto.getVariantes().stream()
+                        .filter(v -> v.getId().equals(itemRequest.varianteId()))
+                        .findFirst()
+                        .orElseThrow(ProductoNoEncontradoException::new);
+                disponible = stockDisponibleCalculator.calcularVariante(variante);
+                if (disponible < itemRequest.cantidad()) {
+                    throw new StockInsuficienteException(
+                            producto.getNombre() + " (" + variante.getColor() + ")", disponible, itemRequest.cantidad());
+                }
+            } else {
+                // Mismo criterio que el catálogo (listarProductos): para
+                // productos con receta, el disponible sale del stock de
+                // insumos, no de Producto.stock.
+                disponible = stockDisponibleCalculator.calcular(producto);
+                if (disponible < itemRequest.cantidad()) {
+                    throw new StockInsuficienteException(producto.getNombre(), disponible, itemRequest.cantidad());
+                }
             }
 
             // Nunca se acepta un precio que venga del pedido público: siempre
@@ -279,6 +304,14 @@ public class PublicTiendaServiceImpl implements PublicTiendaService {
             item.setCantidad(itemRequest.cantidad());
             item.setPrecioUnitario(precioUnitario);
             item.setSubtotal(subtotalItem);
+            if (variante != null) {
+                item.setVarianteId(variante.getId());
+                // Snapshot, no un join en vivo: si el color se borra del form
+                // de Producto después, esta venta vieja sigue mostrándolo
+                // igual en el texto de WhatsApp (ver construirTextoCompartir
+                // en VentaServiceImpl).
+                item.setVarianteColor(variante.getColor());
+            }
             venta.getItems().add(item);
 
             total = total.add(subtotalItem);
@@ -467,6 +500,12 @@ public class PublicTiendaServiceImpl implements PublicTiendaService {
         ResenaDestacadaDto resenaDestacada = resenaMasReciente != null
                 ? new ResenaDestacadaDto(resenaMasReciente.getClienteNombre(), resenaMasReciente.getComentario())
                 : null;
+        List<PublicVarianteDto> variantes = producto.getVariantes().stream()
+                .map(variante -> new PublicVarianteDto(
+                        variante.getId(),
+                        variante.getColor(),
+                        stockDisponibleCalculator.calcularVariante(variante)))
+                .toList();
         return new PublicProductoDto(
                 producto.getId(),
                 producto.getNombre(),
@@ -477,7 +516,8 @@ public class PublicTiendaServiceImpl implements PublicTiendaService {
                 producto.getFotoUrl2(),
                 producto.getFotoUrl3(),
                 stockDisponibleCalculator.calcular(producto),
-                resenaDestacada
+                resenaDestacada,
+                variantes
         );
     }
 }
