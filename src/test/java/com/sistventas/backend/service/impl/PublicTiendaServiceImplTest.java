@@ -738,6 +738,39 @@ class PublicTiendaServiceImplTest {
                 .isInstanceOf(ProductoNoEncontradoException.class);
     }
 
+    @Test
+    void crearPedidoConVariosGrabadosSumaTodosLosPreciosYOmiteElTextoCuandoNoVino() {
+        Empresa empresa = empresa();
+        Categoria categoria = categoria();
+        Producto producto = producto(66L, "Mate imperial", categoria);
+        producto.setPrecioVenta(new BigDecimal("1000.00"));
+        producto.getGrabados().add(grabado(producto, 201L, "Virola", new BigDecimal("100.00")));
+        producto.getGrabados().add(grabado(producto, 202L, "Cuerpo", new BigDecimal("250.00")));
+
+        when(empresaRepository.findBySlugAndTiendaHabilitadaTrue(SLUG)).thenReturn(Optional.of(empresa));
+        when(productoRepository.findByIdAndEmpresaId(66L, EMPRESA_ID)).thenReturn(Optional.of(producto));
+        when(stockDisponibleCalculator.calcular(producto)).thenReturn(5);
+        when(clienteRepository.findByEmpresaIdAndTelefono(EMPRESA_ID, "1122334455"))
+                .thenReturn(Optional.of(cliente(75L, "Fede", "1122334455")));
+        when(calculadorDescuentoComboService.calcular(anyList(), anyList()))
+                .thenReturn(ResultadoDescuentoCombo.sinDescuento());
+        when(ventaRepository.save(any(Venta.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        PublicPedidoRequest request = new PublicPedidoRequest(
+                "Fede", "1122334455",
+                List.of(new PublicPedidoItemRequest(66L, 1, null, List.of(201L, 202L), null, null)),
+                null, null, null, null);
+
+        PublicPedidoResultadoDto resultado = publicTiendaService.crearPedido(SLUG, request);
+
+        assertThat(resultado.total()).isEqualByComparingTo(new BigDecimal("1350.00"));
+
+        ArgumentCaptor<Venta> captor = ArgumentCaptor.forClass(Venta.class);
+        verify(ventaRepository).save(captor.capture());
+        assertThat(captor.getValue().getItems().get(0).getPersonalizacion())
+                .isEqualTo("Grabado en: Virola, Cuerpo");
+    }
+
     // --- crearPedido: descuento combo, cupón y cliente nuevo ---
 
     @Test

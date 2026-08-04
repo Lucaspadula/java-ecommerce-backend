@@ -18,6 +18,7 @@ import com.sistventas.backend.entity.Categoria;
 import com.sistventas.backend.entity.Insumo;
 import com.sistventas.backend.entity.Producto;
 import com.sistventas.backend.entity.ProductoComponente;
+import com.sistventas.backend.entity.ProductoGrabado;
 import com.sistventas.backend.entity.ProductoVariante;
 import com.sistventas.backend.entity.Resena;
 import com.sistventas.backend.entity.RolEmpresa;
@@ -728,6 +729,43 @@ class ProductoServiceImplTest {
         assertThat(dto.grabados()).isEmpty();
     }
 
+    @Test
+    void actualizarGrabadosReemplazaListaCompleta() {
+        // A diferencia de variantes (merge por id), aplicarGrabados hace
+        // clear() + recrea todo desde cero — no hay "actualizar in-place" de
+        // un grabado existente, ver ProductoServiceImpl.aplicarGrabados.
+        Producto existente = productoConId(5L);
+        existente.getGrabados().add(grabado(existente, 200L, "Virola", new BigDecimal("100.00")));
+
+        when(productoRepository.findByIdAndEmpresaId(5L, EMPRESA_ID)).thenReturn(Optional.of(existente));
+
+        ActualizarProductoRequest request = new ActualizarProductoRequest("Mate", CATEGORIA_ID, null, null,
+                new BigDecimal("100.00"), null, null, null, null, null,
+                List.of(new ProductoGrabadoRequest("Base", new BigDecimal("500.00"))),
+                null, null);
+
+        ProductoDto dto = service.actualizar(5L, request, principal);
+
+        assertThat(dto.grabados())
+                .extracting(ProductoGrabadoDto::lugar, ProductoGrabadoDto::precio)
+                .containsExactly(tuple("Base", new BigDecimal("500.00")));
+    }
+
+    @Test
+    void actualizarConGrabadosNullDejaProductoSinGrabados() {
+        Producto existente = productoConId(5L);
+        existente.getGrabados().add(grabado(existente, 200L, "Virola", new BigDecimal("100.00")));
+
+        when(productoRepository.findByIdAndEmpresaId(5L, EMPRESA_ID)).thenReturn(Optional.of(existente));
+
+        ActualizarProductoRequest request = new ActualizarProductoRequest("Mate", CATEGORIA_ID, null, null,
+                new BigDecimal("100.00"), null, null, null, null, null, null, null, null);
+
+        ProductoDto dto = service.actualizar(5L, request, principal);
+
+        assertThat(dto.grabados()).isEmpty();
+    }
+
     // --- Helpers ---
 
     private Producto productoConId(Long id) {
@@ -752,5 +790,14 @@ class ProductoServiceImplTest {
     private ActualizarProductoRequest requestActualizarConComponentes(List<ProductoComponenteRequest> componentes) {
         return new ActualizarProductoRequest("Kit", CATEGORIA_ID, null, null, new BigDecimal("100.00"), null, null,
                 null, null, componentes, null, null, null);
+    }
+
+    private ProductoGrabado grabado(Producto producto, Long id, String lugar, BigDecimal precio) {
+        ProductoGrabado grabado = new ProductoGrabado();
+        grabado.setId(id);
+        grabado.setProducto(producto);
+        grabado.setLugar(lugar);
+        grabado.setPrecio(precio);
+        return grabado;
     }
 }
