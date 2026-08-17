@@ -49,3 +49,11 @@ sistventas:
     # frontend también). En producción se puede sobreescribir vía la
     # variable de entorno GOOGLE_CLIENT_ID.
     client-id: ${GOOGLE_CLIENT_ID:248720521704-utcntiogv25vh6eu4dup5kvo64gtgrtf.apps.googleusercontent.com}
+  gemini:
+    # Genera la descripción sugerida a partir de la foto principal
+    # (Productos > lápiz sobre la foto > "Generar con IA"). Sin key seteada
+    # queda vacío a propósito: DescripcionIaServiceImpl tira
+    # IaNoConfiguradaException con mensaje claro en vez de pegarle a la API
+    # de Google con una key vacía. Conseguir una gratis en aistudio.google.com.
+    api-key: ${GEMINI_API_KEY:}
+    model: ${GEMINI_MODEL:gemini-2.5-flash}

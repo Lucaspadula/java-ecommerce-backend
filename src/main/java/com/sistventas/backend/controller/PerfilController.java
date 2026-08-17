@@ -1,5 +1,6 @@
 package com.sistventas.backend.controller;
 
+import com.sistventas.backend.dto.ActualizarGeminiApiKeyRequest;
 import com.sistventas.backend.dto.ActualizarPerfilRequest;
 import com.sistventas.backend.dto.CambiarPasswordRequest;
 import com.sistventas.backend.dto.MensajeResponse;
@@ -46,5 +47,14 @@ public class PerfilController {
             @Valid @RequestBody CambiarPasswordRequest request,
             @AuthenticationPrincipal UserPrincipal principal) {
         return ResponseEntity.ok(perfilService.cambiarPassword(request, principal));
+    }
+
+    // Solo ADMIN (ver PerfilServiceImpl.adminEmpresaIdOrThrow). apiKey vacío
+    // = borrar la key propia y volver a usar el fallback global.
+    @PutMapping("/gemini-api-key")
+    public ResponseEntity<PerfilDto> actualizarGeminiApiKey(
+            @RequestBody ActualizarGeminiApiKeyRequest request,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(perfilService.actualizarGeminiApiKey(request, principal));
     }
 }

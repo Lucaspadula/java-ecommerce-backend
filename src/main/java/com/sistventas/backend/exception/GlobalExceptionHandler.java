@@ -166,6 +166,21 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", ex.getMessage()));
     }
 
+    @ExceptionHandler(ProductoComponenteInvalidoException.class)
+    public ResponseEntity<Map<String, String>> handleProductoComponenteInvalido(ProductoComponenteInvalidoException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", ex.getMessage()));
+    }
+
+    @ExceptionHandler(IaNoConfiguradaException.class)
+    public ResponseEntity<Map<String, String>> handleIaNoConfigurada(IaNoConfiguradaException ex) {
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(Map.of("error", ex.getMessage()));
+    }
+
+    @ExceptionHandler(IaGeneracionFallidaException.class)
+    public ResponseEntity<Map<String, String>> handleIaGeneracionFallida(IaGeneracionFallidaException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(Map.of("error", ex.getMessage()));
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Map<String, String>> handleValidation(MethodArgumentNotValidException ex) {
         String mensaje = ex.getBindingResult().getFieldErrors().stream()

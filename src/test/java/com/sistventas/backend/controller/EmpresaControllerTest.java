@@ -369,7 +369,7 @@ class EmpresaControllerTest {
                 99L, "Lucas", "lucas@test.com", RolEmpresa.ADMIN, "Mi Empresa", false,
                 "logo-url", "mi-empresa", true,
                 null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null
+                null, null, null, null, null, null, null, false
         );
     }
 

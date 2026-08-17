@@ -23,9 +23,13 @@ public record PerfilDto(
         String tiendaCuponCodigo,
         BigDecimal tiendaCuponPorcentaje,
         String tiendaFuente,
+        String tiendaTema,
         String tiendaBannerVerticalPosicion,
         String tiendaRazonSocial,
         String tiendaCuit,
         String tiendaDireccion,
-        String tiendaSobreNosotros
+        String tiendaSobreNosotros,
+        // Nunca se devuelve la key en texto plano, solo si ya hay una
+        // configurada — ver Empresa.geminiApiKey / PerfilServiceImpl.toDto.
+        boolean geminiApiKeyConfigurada
 ) {}

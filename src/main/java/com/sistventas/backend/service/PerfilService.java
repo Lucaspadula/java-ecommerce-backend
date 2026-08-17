@@ -1,5 +1,6 @@
 package com.sistventas.backend.service;
 
+import com.sistventas.backend.dto.ActualizarGeminiApiKeyRequest;
 import com.sistventas.backend.dto.ActualizarPerfilRequest;
 import com.sistventas.backend.dto.ActualizarTiendaRequest;
 import com.sistventas.backend.dto.BannerImagenTiendaDto;
@@ -21,6 +22,8 @@ public interface PerfilService {
     PerfilDto actualizarLogoEmpresa(MultipartFile file, UserPrincipal principal);
 
     PerfilDto actualizarTienda(ActualizarTiendaRequest request, UserPrincipal principal);
+
+    PerfilDto actualizarGeminiApiKey(ActualizarGeminiApiKeyRequest request, UserPrincipal principal);
 
     List<BannerImagenTiendaDto> listarBannerImagenes(UserPrincipal principal);
 

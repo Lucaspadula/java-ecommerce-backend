@@ -47,12 +47,18 @@ public class AuthServiceImpl implements AuthService {
             UsuarioRepository usuarioRepository,
             PasswordEncoder passwordEncoder,
             JwtService jwtService,
+            RestClient.Builder restClientBuilder,
             @Value("${sistventas.google.client-id}") String googleClientId) {
         this.empresaRepository = empresaRepository;
         this.usuarioRepository = usuarioRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
-        this.restClient = RestClient.create();
+        // Inyectado en vez de RestClient.create(): Spring Boot autoconfigura
+        // un RestClient.Builder equivalente (mismo comportamiento en
+        // producción), pero al recibirlo por constructor los tests pueden
+        // pasar uno atado a un MockRestServiceServer para simular las
+        // respuestas de Google sin pegarle a la red real.
+        this.restClient = restClientBuilder.build();
         this.googleClientId = googleClientId;
     }
 

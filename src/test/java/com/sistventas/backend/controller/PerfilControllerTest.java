@@ -91,7 +91,7 @@ class PerfilControllerTest {
                 99L, nombre, "lucas@test.com", RolEmpresa.ADMIN, "Mi Empresa", false,
                 null, "mi-empresa", true,
                 null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null
+                null, null, null, null, null, null, null, false
         );
     }
 }

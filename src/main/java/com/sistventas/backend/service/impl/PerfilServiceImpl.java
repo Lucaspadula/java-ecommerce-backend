@@ -1,5 +1,6 @@
 package com.sistventas.backend.service.impl;
 
+import com.sistventas.backend.dto.ActualizarGeminiApiKeyRequest;
 import com.sistventas.backend.dto.ActualizarPerfilRequest;
 import com.sistventas.backend.dto.ActualizarTiendaRequest;
 import com.sistventas.backend.dto.BannerImagenTiendaDto;
@@ -152,6 +153,8 @@ public class PerfilServiceImpl implements PerfilService {
         empresa.setTiendaCuponPorcentaje(request.tiendaCuponPorcentaje());
         String fuente = vacioComoNull(request.tiendaFuente());
         empresa.setTiendaFuente(fuente != null ? fuente : "clasica");
+        String tema = vacioComoNull(request.tiendaTema());
+        empresa.setTiendaTema(tema != null ? tema : "claro");
         empresa.setTiendaBannerVerticalPosicion(vacioComoNull(request.tiendaBannerVerticalPosicion()));
         empresa.setTiendaRazonSocial(vacioComoNull(request.tiendaRazonSocial()));
         empresa.setTiendaCuit(vacioComoNull(request.tiendaCuit()));
@@ -159,6 +162,16 @@ public class PerfilServiceImpl implements PerfilService {
         empresa.setTiendaSobreNosotros(vacioComoNull(request.tiendaSobreNosotros()));
         empresaRepository.save(empresa);
 
+        return toDto(buscarUsuario(principal));
+    }
+
+    @Override
+    @Transactional
+    public PerfilDto actualizarGeminiApiKey(ActualizarGeminiApiKeyRequest request, UserPrincipal principal) {
+        Long empresaId = adminEmpresaIdOrThrow(principal);
+        Empresa empresa = empresaRepository.getReferenceById(empresaId);
+        empresa.setGeminiApiKey(vacioComoNull(request.apiKey()));
+        empresaRepository.save(empresa);
         return toDto(buscarUsuario(principal));
     }
 
@@ -315,11 +328,13 @@ public class PerfilServiceImpl implements PerfilService {
                 empresa != null ? empresa.getTiendaCuponCodigo() : null,
                 empresa != null ? empresa.getTiendaCuponPorcentaje() : null,
                 empresa != null ? empresa.getTiendaFuente() : null,
+                empresa != null ? empresa.getTiendaTema() : null,
                 empresa != null ? empresa.getTiendaBannerVerticalPosicion() : null,
                 empresa != null ? empresa.getTiendaRazonSocial() : null,
                 empresa != null ? empresa.getTiendaCuit() : null,
                 empresa != null ? empresa.getTiendaDireccion() : null,
-                empresa != null ? empresa.getTiendaSobreNosotros() : null
+                empresa != null ? empresa.getTiendaSobreNosotros() : null,
+                empresa != null && empresa.getGeminiApiKey() != null && !empresa.getGeminiApiKey().isBlank()
         );
     }
 
