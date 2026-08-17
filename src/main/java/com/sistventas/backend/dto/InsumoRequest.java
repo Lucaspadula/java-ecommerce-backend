@@ -1,5 +1,6 @@
 package com.sistventas.backend.dto;
 
+import com.sistventas.backend.entity.RolInsumo;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -23,5 +24,9 @@ public record InsumoRequest(
 
         BigDecimal stockMinimo,
 
-        String unidadMedida
+        String unidadMedida,
+
+        // Opcional a propósito: no es obligatorio clasificar un insumo al
+        // cargarlo, pero ahora se puede — ver RolInsumo.
+        RolInsumo rol
 ) {}

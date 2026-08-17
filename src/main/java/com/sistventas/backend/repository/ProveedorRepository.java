@@ -10,6 +10,12 @@ import java.util.Optional;
 public interface ProveedorRepository extends JpaRepository<Proveedor, Long> {
     List<Proveedor> findByEmpresaIdAndActivoTrue(Long empresaId);
 
+    List<Proveedor> findByEmpresaIdAndActivoFalse(Long empresaId);
+
+    boolean existsByEmpresaIdAndNombreIgnoreCaseAndActivoTrue(Long empresaId, String nombre);
+
+    boolean existsByEmpresaIdAndNombreIgnoreCaseAndActivoTrueAndIdNot(Long empresaId, String nombre, Long id);
+
     Optional<Proveedor> findByIdAndEmpresaId(Long id, Long empresaId);
 
     long countByEmpresaIdAndEstadoPedido(Long empresaId, EstadoPedido estadoPedido);

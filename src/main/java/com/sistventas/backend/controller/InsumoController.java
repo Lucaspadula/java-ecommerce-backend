@@ -13,6 +13,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -45,6 +46,11 @@ public class InsumoController {
         return ResponseEntity.ok(insumoService.listar(principal));
     }
 
+    @GetMapping("/inactivos")
+    public ResponseEntity<List<InsumoDto>> listarInactivos(@AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(insumoService.listarInactivos(principal));
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<InsumoDto> obtener(
             @PathVariable Long id,
@@ -74,6 +80,13 @@ public class InsumoController {
             @AuthenticationPrincipal UserPrincipal principal) {
         insumoService.eliminar(id, principal);
         return ResponseEntity.noContent().build();
+    }
+
+    @PatchMapping("/{id}/restaurar")
+    public ResponseEntity<InsumoDto> restaurar(
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(insumoService.restaurar(id, principal));
     }
 
     @GetMapping("/plantilla")

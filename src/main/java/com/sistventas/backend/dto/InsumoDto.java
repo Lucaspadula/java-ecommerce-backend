@@ -1,5 +1,7 @@
 package com.sistventas.backend.dto;
 
+import com.sistventas.backend.entity.RolInsumo;
+
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
@@ -15,5 +17,10 @@ public record InsumoDto(
         BigDecimal stockMinimo,
         String unidadMedida,
         boolean activo,
-        LocalDateTime fechaAlta
+        LocalDateTime fechaAlta,
+        // Nullable: insumos legados sin clasificar todavía (ver RolInsumo).
+        // Clave para que ConsumoEnComboStrategy no descuente embalaje
+        // duplicado cuando este insumo forma parte de un producto vendido
+        // dentro de un Kit.
+        RolInsumo rol
 ) {}

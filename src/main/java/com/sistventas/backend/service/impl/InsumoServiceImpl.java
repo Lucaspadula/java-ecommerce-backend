@@ -4,6 +4,8 @@ import com.sistventas.backend.dto.ImportarInsumosResultadoDto;
 import com.sistventas.backend.dto.InsumoDto;
 import com.sistventas.backend.dto.InsumoRequest;
 import com.sistventas.backend.entity.Insumo;
+import com.sistventas.backend.entity.RolInsumo;
+import com.sistventas.backend.exception.AccionNoPermitidaException;
 import com.sistventas.backend.exception.ArchivoInvalidoException;
 import com.sistventas.backend.exception.InsumoNoEncontradoException;
 import com.sistventas.backend.exception.SinEmpresaException;
@@ -32,9 +34,9 @@ import java.util.List;
 public class InsumoServiceImpl implements InsumoService {
 
     // Mismo orden de columnas en la plantilla generada y en el parseo del
-    // import: Nombre, Costo Unitario, Stock, Stock Mínimo, Unidad de Medida.
+    // import: Nombre, Costo Unitario, Stock, Stock Mínimo, Unidad de Medida, Rol.
     private static final String[] ENCABEZADOS_PLANTILLA =
-            {"Nombre", "Costo Unitario", "Stock", "Stock Mínimo", "Unidad de Medida"};
+            {"Nombre", "Costo Unitario", "Stock", "Stock Mínimo", "Unidad de Medida", "Rol (MATERIA_PRIMA/EMBALAJE, opcional)"};
 
     private final InsumoRepository insumoRepository;
 
@@ -53,6 +55,15 @@ public class InsumoServiceImpl implements InsumoService {
 
     @Override
     @Transactional(readOnly = true)
+    public List<InsumoDto> listarInactivos(UserPrincipal principal) {
+        Long empresaId = empresaIdOrThrow(principal);
+        return insumoRepository.findByEmpresaIdAndActivoFalse(empresaId).stream()
+                .map(this::toDto)
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public InsumoDto obtener(Long id, UserPrincipal principal) {
         return toDto(buscarPorEmpresa(id, principal));
     }
@@ -61,6 +72,7 @@ public class InsumoServiceImpl implements InsumoService {
     @Transactional
     public InsumoDto crear(InsumoRequest request, UserPrincipal principal) {
         Long empresaId = empresaIdOrThrow(principal);
+        validarNombreUnico(request.nombre(), null, empresaId);
 
         Insumo insumo = new Insumo();
         insumo.setEmpresaId(empresaId);
@@ -75,8 +87,21 @@ public class InsumoServiceImpl implements InsumoService {
     @Transactional
     public InsumoDto actualizar(Long id, InsumoRequest request, UserPrincipal principal) {
         Insumo insumo = buscarPorEmpresa(id, principal);
+        validarNombreUnico(request.nombre(), id, insumo.getEmpresaId());
         aplicarDatos(insumo, request);
         return toDto(insumoRepository.save(insumo));
+    }
+
+    // Comparación case-insensitive contra insumos activos de la misma
+    // empresa. idActual null en el alta; en la edición se excluye al propio
+    // insumo para no chocar contra sí mismo.
+    private void validarNombreUnico(String nombre, Long idActual, Long empresaId) {
+        boolean duplicado = idActual == null
+                ? insumoRepository.existsByEmpresaIdAndNombreIgnoreCaseAndActivoTrue(empresaId, nombre)
+                : insumoRepository.existsByEmpresaIdAndNombreIgnoreCaseAndActivoTrueAndIdNot(empresaId, nombre, idActual);
+        if (duplicado) {
+            throw new AccionNoPermitidaException("Ya existe un insumo activo con ese nombre");
+        }
     }
 
     @Override
@@ -85,6 +110,14 @@ public class InsumoServiceImpl implements InsumoService {
         Insumo insumo = buscarPorEmpresa(id, principal);
         insumo.setActivo(false);
         insumoRepository.save(insumo);
+    }
+
+    @Override
+    @Transactional
+    public InsumoDto restaurar(Long id, UserPrincipal principal) {
+        Insumo insumo = buscarPorEmpresa(id, principal);
+        insumo.setActivo(true);
+        return toDto(insumoRepository.save(insumo));
     }
 
     @Override
@@ -111,6 +144,7 @@ public class InsumoServiceImpl implements InsumoService {
             filaEjemplo.createCell(2).setCellValue(50);
             filaEjemplo.createCell(3).setCellValue(10);
             filaEjemplo.createCell(4).setCellValue("unidad");
+            filaEjemplo.createCell(5).setCellValue("MATERIA_PRIMA");
 
             for (int i = 0; i < ENCABEZADOS_PLANTILLA.length; i++) {
                 sheet.autoSizeColumn(i);
@@ -154,7 +188,11 @@ public class InsumoServiceImpl implements InsumoService {
                     InsumoRequest request = parsearFila(row);
                     crear(request, principal);
                     creados++;
-                } catch (IllegalArgumentException ex) {
+                } catch (IllegalArgumentException | AccionNoPermitidaException ex) {
+                    // La segunda también acá: un nombre duplicado (ver
+                    // validarNombreUnico en crear()) es un error de esa fila
+                    // puntual, no del archivo entero — mismo criterio
+                    // best-effort que un dato mal tipeado.
                     errores.add("Fila " + filaVisible + ": " + ex.getMessage());
                 }
             }
@@ -213,7 +251,23 @@ public class InsumoServiceImpl implements InsumoService {
         String unidadMedida = celdaTexto(row, 4);
         unidadMedida = unidadMedida.isBlank() ? null : unidadMedida;
 
-        return new InsumoRequest(nombre, costoUnitario, stock, stockMinimo, unidadMedida);
+        RolInsumo rol = parsearRol(celdaTexto(row, 5));
+
+        return new InsumoRequest(nombre, costoUnitario, stock, stockMinimo, unidadMedida, rol);
+    }
+
+    // Opcional: celda vacía es válido (insumo sin clasificar, como siempre).
+    // Cualquier texto que no matchee exactamente un valor del enum es un
+    // error de fila, no se adivina ni se ignora en silencio.
+    private RolInsumo parsearRol(String texto) {
+        if (texto.isBlank()) {
+            return null;
+        }
+        try {
+            return RolInsumo.valueOf(texto.trim().toUpperCase());
+        } catch (IllegalArgumentException ex) {
+            throw new IllegalArgumentException("el rol debe ser MATERIA_PRIMA, EMBALAJE o estar vacío");
+        }
     }
 
     private String celdaTexto(Row row, int index) {
@@ -256,6 +310,7 @@ public class InsumoServiceImpl implements InsumoService {
         insumo.setStock(request.stock());
         insumo.setStockMinimo(request.stockMinimo());
         insumo.setUnidadMedida(request.unidadMedida());
+        insumo.setRol(request.rol());
     }
 
     private Insumo buscarPorEmpresa(Long id, UserPrincipal principal) {
@@ -283,7 +338,8 @@ public class InsumoServiceImpl implements InsumoService {
                 insumo.getStockMinimo(),
                 insumo.getUnidadMedida(),
                 insumo.isActivo(),
-                insumo.getFechaAlta()
+                insumo.getFechaAlta(),
+                insumo.getRol()
         );
     }
 }

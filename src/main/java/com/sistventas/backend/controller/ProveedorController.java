@@ -10,6 +10,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -37,6 +38,11 @@ public class ProveedorController {
     @GetMapping
     public ResponseEntity<List<ProveedorDto>> listar(@AuthenticationPrincipal UserPrincipal principal) {
         return ResponseEntity.ok(proveedorService.listar(principal));
+    }
+
+    @GetMapping("/inactivos")
+    public ResponseEntity<List<ProveedorDto>> listarInactivos(@AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(proveedorService.listarInactivos(principal));
     }
 
     @GetMapping("/{id}")
@@ -68,5 +74,12 @@ public class ProveedorController {
             @AuthenticationPrincipal UserPrincipal principal) {
         proveedorService.eliminar(id, principal);
         return ResponseEntity.noContent().build();
+    }
+
+    @PatchMapping("/{id}/restaurar")
+    public ResponseEntity<ProveedorDto> restaurar(
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(proveedorService.restaurar(id, principal));
     }
 }

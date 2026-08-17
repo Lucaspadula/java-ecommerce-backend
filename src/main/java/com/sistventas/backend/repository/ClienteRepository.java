@@ -9,6 +9,12 @@ import java.util.Optional;
 public interface ClienteRepository extends JpaRepository<Cliente, Long> {
     List<Cliente> findByEmpresaIdAndActivoTrue(Long empresaId);
 
+    List<Cliente> findByEmpresaIdAndActivoFalse(Long empresaId);
+
+    boolean existsByEmpresaIdAndNombreIgnoreCaseAndActivoTrue(Long empresaId, String nombre);
+
+    boolean existsByEmpresaIdAndNombreIgnoreCaseAndActivoTrueAndIdNot(Long empresaId, String nombre, Long id);
+
     Optional<Cliente> findByIdAndEmpresaId(Long id, Long empresaId);
 
     Optional<Cliente> findByEmpresaIdAndTelefono(Long empresaId, String telefono);

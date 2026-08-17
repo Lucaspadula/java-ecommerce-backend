@@ -3,6 +3,7 @@ package com.sistventas.backend.service.impl;
 import com.sistventas.backend.dto.ClienteDto;
 import com.sistventas.backend.dto.ClienteRequest;
 import com.sistventas.backend.entity.Cliente;
+import com.sistventas.backend.exception.AccionNoPermitidaException;
 import com.sistventas.backend.exception.ClienteNoEncontradoException;
 import com.sistventas.backend.exception.SinEmpresaException;
 import com.sistventas.backend.repository.ClienteRepository;
@@ -34,6 +35,15 @@ public class ClienteServiceImpl implements ClienteService {
 
     @Override
     @Transactional(readOnly = true)
+    public List<ClienteDto> listarInactivos(UserPrincipal principal) {
+        Long empresaId = empresaIdOrThrow(principal);
+        return clienteRepository.findByEmpresaIdAndActivoFalse(empresaId).stream()
+                .map(this::toDto)
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public ClienteDto obtener(Long id, UserPrincipal principal) {
         return toDto(buscarPorEmpresa(id, principal));
     }
@@ -42,6 +52,7 @@ public class ClienteServiceImpl implements ClienteService {
     @Transactional
     public ClienteDto crear(ClienteRequest request, UserPrincipal principal) {
         Long empresaId = empresaIdOrThrow(principal);
+        validarNombreUnico(request.nombre(), null, empresaId);
 
         Cliente cliente = new Cliente();
         cliente.setEmpresaId(empresaId);
@@ -56,8 +67,21 @@ public class ClienteServiceImpl implements ClienteService {
     @Transactional
     public ClienteDto actualizar(Long id, ClienteRequest request, UserPrincipal principal) {
         Cliente cliente = buscarPorEmpresa(id, principal);
+        validarNombreUnico(request.nombre(), id, cliente.getEmpresaId());
         aplicarDatos(cliente, request);
         return toDto(clienteRepository.save(cliente));
+    }
+
+    // Comparación case-insensitive contra clientes activos de la misma
+    // empresa. idActual null en el alta (nada que excluir); en la edición se
+    // excluye al propio cliente para no chocar contra sí mismo.
+    private void validarNombreUnico(String nombre, Long idActual, Long empresaId) {
+        boolean duplicado = idActual == null
+                ? clienteRepository.existsByEmpresaIdAndNombreIgnoreCaseAndActivoTrue(empresaId, nombre)
+                : clienteRepository.existsByEmpresaIdAndNombreIgnoreCaseAndActivoTrueAndIdNot(empresaId, nombre, idActual);
+        if (duplicado) {
+            throw new AccionNoPermitidaException("Ya existe un cliente activo con ese nombre");
+        }
     }
 
     @Override
@@ -66,6 +90,16 @@ public class ClienteServiceImpl implements ClienteService {
         Cliente cliente = buscarPorEmpresa(id, principal);
         cliente.setActivo(false);
         clienteRepository.save(cliente);
+    }
+
+    @Override
+    @Transactional
+    public ClienteDto restaurar(Long id, UserPrincipal principal) {
+        // buscarPorEmpresa no filtra por activo — encuentra al cliente
+        // inactivo igual, es el mismo método que usa actualizar().
+        Cliente cliente = buscarPorEmpresa(id, principal);
+        cliente.setActivo(true);
+        return toDto(clienteRepository.save(cliente));
     }
 
     private void aplicarDatos(Cliente cliente, ClienteRequest request) {
