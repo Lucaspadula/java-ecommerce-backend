@@ -40,7 +40,12 @@ public class ImagenUploadValidator {
         if (file.getSize() > MAX_FILE_SIZE) {
             throw new ArchivoInvalidoException("La imagen no puede superar los 5MB");
         }
-        String extension = CONTENT_TYPE_A_EXTENSION.get(file.getContentType());
+        // Map.of(...) es un Map inmutable que no acepta clave null: un
+        // Content-Type ausente (algunos clientes no lo mandan) reventaba acá
+        // con NullPointerException en vez de caer en el 400 de negocio
+        // ArchivoInvalidoException de abajo.
+        String contentType = file.getContentType();
+        String extension = contentType != null ? CONTENT_TYPE_A_EXTENSION.get(contentType) : null;
         if (extension == null) {
             throw new ArchivoInvalidoException("La imagen debe ser JPG, PNG, WEBP o GIF");
         }
