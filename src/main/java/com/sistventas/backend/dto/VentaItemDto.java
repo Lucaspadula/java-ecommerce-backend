@@ -12,5 +12,6 @@ public record VentaItemDto(
         BigDecimal subtotal,
         String fotoUrl,
         Long varianteId,
-        String varianteColor
+        String varianteColor,
+        String grabadoImagenUrl
 ) {}

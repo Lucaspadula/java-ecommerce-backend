@@ -587,6 +587,13 @@ public class VentaServiceImpl implements VentaService {
             if (item.getPersonalizacion() != null && !item.getPersonalizacion().isBlank()) {
                 sb.append("   ✎ ").append(item.getPersonalizacion()).append("\n");
             }
+            // Imagen del grabado subida por el cliente en el checkout público
+            // (ver PublicTiendaServiceImpl.crearPedido) — se manda el link
+            // para que el dueño la abra directo desde WhatsApp, no solo el
+            // texto de qué grabar.
+            if (item.getGrabadoImagenUrl() != null && !item.getGrabadoImagenUrl().isBlank()) {
+                sb.append("   🖼 Imagen adjunta: ").append(item.getGrabadoImagenUrl()).append("\n");
+            }
         }
         sb.append("--------------------------------\n");
         sb.append("Subtotal: $").append(formatMonto(venta.getSubtotal())).append("\n");
@@ -634,6 +641,20 @@ public class VentaServiceImpl implements VentaService {
             item.setSubtotal(subtotalItem);
             item.setFotoUrl(itemRequest.fotoUrl());
             item.setVarianteId(itemRequest.varianteId());
+            // Snapshot del color, mismo criterio que PublicTiendaServiceImpl.
+            // crearPedido(): si el color se borra del form de Producto
+            // después, esta venta vieja lo sigue mostrando igual en el texto
+            // de WhatsApp. Antes esto solo se completaba desde el pedido de
+            // la tienda pública — una venta cargada/editada a mano desde el
+            // panel admin con variante de color quedaba con varianteColor
+            // null (el stock de la variante se movía bien igual, era solo un
+            // dato de presentación perdido).
+            if (itemRequest.varianteId() != null) {
+                producto.getVariantes().stream()
+                        .filter(v -> v.getId().equals(itemRequest.varianteId()))
+                        .findFirst()
+                        .ifPresent(variante -> item.setVarianteColor(variante.getColor()));
+            }
             venta.getItems().add(item);
 
             subtotal = subtotal.add(subtotalItem);
@@ -738,7 +759,8 @@ public class VentaServiceImpl implements VentaService {
                 item.getSubtotal(),
                 item.getFotoUrl(),
                 item.getVarianteId(),
-                item.getVarianteColor()
+                item.getVarianteColor(),
+                item.getGrabadoImagenUrl()
         );
     }
 }

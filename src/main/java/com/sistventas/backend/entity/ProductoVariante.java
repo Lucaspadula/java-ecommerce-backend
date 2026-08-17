@@ -1,6 +1,7 @@
 package com.sistventas.backend.entity;
 
 import jakarta.persistence.*;
+import java.math.BigDecimal;
 
 @Entity
 @Table(name = "producto_variante")
@@ -34,6 +35,16 @@ public class ProductoVariante {
     @Column(name = "foto_url", length = 255)
     private String fotoUrl;
 
+    // Columna de esquema sin uso: existió como override opcional de precio
+    // por color, se sacó de ProductoServiceImpl/PublicTiendaServiceImpl
+    // porque un solo margen mostrado en el form para varios precios distintos
+    // generaba confusión (ver ProductoVarianteRequest). Se deja existir por
+    // compatibilidad de esquema (no vale la pena una migración solo para
+    // borrarla), mismo criterio que Producto.stock — nunca se lee ni se
+    // escribe como fuente de verdad.
+    @Column(name = "precio_venta", precision = 12, scale = 2)
+    private BigDecimal precioVenta;
+
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 
@@ -48,4 +59,7 @@ public class ProductoVariante {
 
     public String getFotoUrl() { return fotoUrl; }
     public void setFotoUrl(String fotoUrl) { this.fotoUrl = fotoUrl; }
+
+    public BigDecimal getPrecioVenta() { return precioVenta; }
+    public void setPrecioVenta(BigDecimal precioVenta) { this.precioVenta = precioVenta; }
 }

@@ -222,10 +222,21 @@ public class DashboardServiceImpl implements DashboardService {
         if (producto == null) {
             return BigDecimal.ZERO;
         }
-        BigDecimal costoUnitario = producto.getInsumos().stream()
-                .map(productoInsumo -> productoInsumo.getInsumo().getCostoUnitario()
-                        .multiply(productoInsumo.getCantidad()))
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        // Mismo criterio que ProductoServiceImpl.costoEfectivo(): con receta,
+        // el costo sale de sumar insumos; SIN receta (producto simple, stock
+        // propio) no hay de dónde sumarlo, así que se usa el costoUnitario
+        // cargado a mano (0 si no cargó nada) en vez de tratarlo como cero
+        // directamente — antes esto último inflaba gananciaTotal/margen acá
+        // para productos sin receta con costo real cargado.
+        BigDecimal costoUnitario;
+        if (!producto.getInsumos().isEmpty()) {
+            costoUnitario = producto.getInsumos().stream()
+                    .map(productoInsumo -> productoInsumo.getInsumo().getCostoUnitario()
+                            .multiply(productoInsumo.getCantidad()))
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+        } else {
+            costoUnitario = producto.getCostoUnitario() != null ? producto.getCostoUnitario() : BigDecimal.ZERO;
+        }
         return costoUnitario.multiply(BigDecimal.valueOf(item.getCantidad()));
     }
 

@@ -32,5 +32,11 @@ public record ProductoDto(
         List<ProductoInsumoDto> insumos,
         // Variantes de color (Etapa 1): lista vacía = producto simple, stock
         // propio de siempre (ver Producto.variantes).
-        List<ProductoVarianteDto> variantes
+        List<ProductoVarianteDto> variantes,
+        // Kit (Composite): lista vacía = producto simple, de siempre (ver
+        // Producto.componentes).
+        List<ProductoComponenteDto> componentes,
+        // Lugares grabables: lista vacía = producto sin opción de grabado
+        // (ver Producto.grabados).
+        List<ProductoGrabadoDto> grabados
 ) {}

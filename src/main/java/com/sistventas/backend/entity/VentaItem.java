@@ -37,6 +37,12 @@ public class VentaItem {
     @Column(columnDefinition = "TEXT")
     private String personalizacion;
 
+    // Imagen del grabado (logo/diseño) subida por el cliente en el checkout
+    // público — el texto del grabado va en `personalizacion` de arriba, ver
+    // PublicTiendaServiceImpl.crearPedido.
+    @Column(name = "grabado_imagen_url", length = 255)
+    private String grabadoImagenUrl;
+
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal subtotal;
 
@@ -82,6 +88,9 @@ public class VentaItem {
 
     public String getPersonalizacion() { return personalizacion; }
     public void setPersonalizacion(String personalizacion) { this.personalizacion = personalizacion; }
+
+    public String getGrabadoImagenUrl() { return grabadoImagenUrl; }
+    public void setGrabadoImagenUrl(String grabadoImagenUrl) { this.grabadoImagenUrl = grabadoImagenUrl; }
 
     public BigDecimal getSubtotal() { return subtotal; }
     public void setSubtotal(BigDecimal subtotal) { this.subtotal = subtotal; }

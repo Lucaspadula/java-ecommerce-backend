@@ -4,6 +4,7 @@ import com.sistventas.backend.dto.ActualizarProductoRequest;
 import com.sistventas.backend.dto.AjustePrecioCategoriaRequest;
 import com.sistventas.backend.dto.AjustePrecioCategoriaResultadoDto;
 import com.sistventas.backend.dto.CrearResenaRequest;
+import com.sistventas.backend.dto.FotoUploadDto;
 import com.sistventas.backend.dto.ProductoDto;
 import com.sistventas.backend.dto.ProductoRequest;
 import com.sistventas.backend.dto.ResenaDto;
@@ -33,6 +34,13 @@ public interface ProductoService {
     ProductoDto eliminarFoto(Long id, int slot, UserPrincipal principal);
 
     AjustePrecioCategoriaResultadoDto ajustarPrecioPorCategoria(AjustePrecioCategoriaRequest request, UserPrincipal principal);
+
+    // Upload genérico, no atado a un producto/variante puntual — mismo
+    // criterio que VentaService.subirFoto: el frontend sube la foto mientras
+    // arma el form (variante nueva o existente) y guarda la fotoUrl devuelta
+    // en la fila correspondiente, para mandarla como parte del payload
+    // normal de POST/PUT /api/productos.
+    FotoUploadDto subirFotoVariante(MultipartFile file, UserPrincipal principal);
 
     // Testimonios de clientes que el dueño carga a mano desde el panel de
     // administración (ver Resena) — viven en el contexto de un producto, así

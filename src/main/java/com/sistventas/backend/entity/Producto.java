@@ -71,13 +71,21 @@ public class Producto {
     @Column(name = "fecha_alta", nullable = false, updatable = false)
     private LocalDateTime fechaAlta;
 
-    // Columna de esquema sin uso: todo producto se compone de insumos, sin
-    // excepción, así que el stock siempre sale de StockDisponibleCalculator
-    // en base al stock de los insumos de la receta. Se deja existir por
-    // compatibilidad de esquema (no vale la pena una migración solo para
-    // borrarla) pero nunca se lee como fuente de verdad.
+    // Stock propio: SOLO se usa (se lee y se mueve en ventas/ajustes) cuando
+    // el producto no tiene receta de insumos ni componentes de kit — ver
+    // StockDisponibleCalculator.calcular y VentaServiceImpl.demandaStockPropio.
+    // Para un producto CON receta o kit, esta columna queda inerte (se sigue
+    // persistiendo lo que mande el form, pero nadie la lee como fuente de
+    // verdad): el disponible sale siempre del cálculo correspondiente.
     @Column(nullable = false)
     private Integer stock = 0;
+
+    // Costo propio, opcional: análogo a `stock` de arriba — solo se usa
+    // cuando el producto no tiene receta de insumos (ver
+    // ProductoServiceImpl.costoEfectivo). Con receta, el costo sigue
+    // saliendo siempre de sumar el subtotal de cada línea de insumos.
+    @Column(name = "costo_unitario", precision = 12, scale = 2)
+    private BigDecimal costoUnitario;
 
     @OneToMany(mappedBy = "producto", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     private List<ProductoInsumo> insumos = new ArrayList<>();
@@ -99,6 +107,12 @@ public class Producto {
     // aparte por variante.
     @OneToMany(mappedBy = "producto", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     private List<ProductoVariante> variantes = new ArrayList<>();
+
+    // Lugares grabables (ej. "Virola", "Cuerpo de algarrobo"), cada uno con
+    // su propio precio de servicio. Lista vacía = producto sin opción de
+    // grabado, no se muestra el selector en la tienda pública.
+    @OneToMany(mappedBy = "producto", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    private List<ProductoGrabado> grabados = new ArrayList<>();
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
@@ -145,6 +159,9 @@ public class Producto {
     public Integer getStock() { return stock; }
     public void setStock(Integer stock) { this.stock = stock; }
 
+    public BigDecimal getCostoUnitario() { return costoUnitario; }
+    public void setCostoUnitario(BigDecimal costoUnitario) { this.costoUnitario = costoUnitario; }
+
     public List<ProductoInsumo> getInsumos() { return insumos; }
     public void setInsumos(List<ProductoInsumo> insumos) { this.insumos = insumos; }
 
@@ -153,4 +170,7 @@ public class Producto {
 
     public List<ProductoVariante> getVariantes() { return variantes; }
     public void setVariantes(List<ProductoVariante> variantes) { this.variantes = variantes; }
+
+    public List<ProductoGrabado> getGrabados() { return grabados; }
+    public void setGrabados(List<ProductoGrabado> grabados) { this.grabados = grabados; }
 }

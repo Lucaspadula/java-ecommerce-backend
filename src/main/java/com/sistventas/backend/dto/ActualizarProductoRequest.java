@@ -4,16 +4,15 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 
 import java.math.BigDecimal;
 import java.util.List;
 
-// Igual que ProductoRequest pero SIN stock: al editar un producto existente
-// el stock no se toca por acá, sale siempre del stock de los insumos de la
-// receta (ver StockDisponibleCalculator). Separado de ProductoRequest a
-// propósito para que sea imposible mandar stock en un PUT.
+// Casi igual que ProductoRequest — sigue separado como record propio porque
+// esta pantalla nunca necesitó diferir en nada más (no por el viejo motivo
+// de "sin stock": un producto sin receta SÍ necesita poder editar su stock
+// propio acá, ver `stock` más abajo).
 public record ActualizarProductoRequest(
         @NotBlank(message = "El nombre del producto es obligatorio")
         String nombre,
@@ -38,14 +37,27 @@ public record ActualizarProductoRequest(
         @Min(value = 1, message = "La cantidad mínima para mayorista debe ser al menos 1")
         Integer cantidadMinimaMayorista,
 
-        // Todo producto se compone de insumos, sin excepción — ver
-        // ProductoRequest.
-        @NotEmpty(message = "El producto necesita al menos un artículo")
+        // Ya no es @NotEmpty acá — ver ProductoRequest.
         @Valid
         List<ProductoInsumoRequest> insumos,
 
         // Opcional: no todo producto tiene variantes de color — ver
         // ProductoRequest.
         @Valid
-        List<ProductoVarianteRequest> variantes
+        List<ProductoVarianteRequest> variantes,
+
+        // Kit (Composite) — ver ProductoRequest.
+        @Valid
+        List<ProductoComponenteRequest> componentes,
+
+        // Lugares grabables — ver ProductoRequest.
+        @Valid
+        List<ProductoGrabadoRequest> grabados,
+
+        // Producto simple con stock propio — ver ProductoRequest.
+        @Min(value = 0, message = "El stock no puede ser negativo")
+        Integer stock,
+
+        @DecimalMin(value = "0.0", message = "El costo unitario no puede ser negativo")
+        BigDecimal costoUnitario
 ) {}

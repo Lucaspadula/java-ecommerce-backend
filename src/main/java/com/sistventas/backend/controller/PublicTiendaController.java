@@ -1,6 +1,7 @@
 package com.sistventas.backend.controller;
 
 import com.sistventas.backend.dto.CategoriaTiendaDto;
+import com.sistventas.backend.dto.FotoUploadDto;
 import com.sistventas.backend.dto.PreviewDescuentoComboDto;
 import com.sistventas.backend.dto.PreviewDescuentoComboRequest;
 import com.sistventas.backend.dto.PublicEmpresaDto;
@@ -22,6 +23,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -43,6 +45,16 @@ public class PublicTiendaController {
     @GetMapping("/{slug}")
     public ResponseEntity<PublicEmpresaDto> obtenerEmpresa(@PathVariable String slug) {
         return ResponseEntity.ok(publicTiendaService.obtenerEmpresa(slug));
+    }
+
+    // Subida ANÓNIMA (sin JWT, ver clase) del logo/diseño del grabado —
+    // rate-limiteada en RateLimitFilter (GRABADO_FOTO), no es gratis dejar
+    // esto sin límite en una ruta pública sin fricción.
+    @PostMapping(value = "/{slug}/grabado/foto", consumes = "multipart/form-data")
+    public ResponseEntity<FotoUploadDto> subirFotoGrabado(
+            @PathVariable String slug,
+            @RequestParam("file") MultipartFile file) {
+        return ResponseEntity.ok(publicTiendaService.subirFotoGrabado(slug, file));
     }
 
     @GetMapping("/{slug}/productos")

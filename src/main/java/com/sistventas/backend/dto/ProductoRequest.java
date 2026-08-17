@@ -4,7 +4,6 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 
 import java.math.BigDecimal;
@@ -34,12 +33,9 @@ public record ProductoRequest(
         @Min(value = 1, message = "La cantidad mínima para mayorista debe ser al menos 1")
         Integer cantidadMinimaMayorista,
 
-        // Todo producto se compone de insumos, sin excepción — incluso uno
-        // comprado ya hecho a un tercero se carga como un solo insumo que
-        // representa el producto entero, con receta de una línea (cantidad
-        // 1). No hay stock ni costo que se carguen a mano: ambos salen
-        // siempre de la receta (ver ProductoServiceImpl).
-        @NotEmpty(message = "El producto necesita al menos un artículo")
+        // Ya no es @NotEmpty acá: un producto puede componerse de insumos, de
+        // componentes (kit), o de ninguno de los dos (producto simple con
+        // stock propio, ver `stock`/`costoUnitario` más abajo).
         @Valid
         List<ProductoInsumoRequest> insumos,
 
@@ -48,5 +44,28 @@ public record ProductoRequest(
         // ProductoServiceImpl y StockDisponibleCalculator, que ramifican
         // explícitamente en este chequeo antes de tocar el camino existente).
         @Valid
-        List<ProductoVarianteRequest> variantes
+        List<ProductoVarianteRequest> variantes,
+
+        // Kit (Composite): lista vacía o null = producto simple, de siempre.
+        // Cada línea referencia OTRO Producto ya cargado + cantidad — ver
+        // ProductoComponente y StockDisponibleCalculator.calcularKit.
+        @Valid
+        List<ProductoComponenteRequest> componentes,
+
+        // Lugares grabables: lista vacía o null = producto sin opción de
+        // grabado, no se muestra el selector en la tienda pública (ver
+        // ProductoGrabado).
+        @Valid
+        List<ProductoGrabadoRequest> grabados,
+
+        // Ambos SOLO se usan cuando el producto no tiene insumos ni
+        // componentes (producto simple, stock propio) — ver
+        // StockDisponibleCalculator y VentaServiceImpl.demandaStockPropio.
+        // Con receta o kit, el service los persiste igual pero quedan
+        // inertes: el disponible/costo real sale del cálculo correspondiente.
+        @Min(value = 0, message = "El stock no puede ser negativo")
+        Integer stock,
+
+        @DecimalMin(value = "0.0", message = "El costo unitario no puede ser negativo")
+        BigDecimal costoUnitario
 ) {}

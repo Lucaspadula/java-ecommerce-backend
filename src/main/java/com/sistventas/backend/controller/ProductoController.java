@@ -4,11 +4,14 @@ import com.sistventas.backend.dto.ActualizarProductoRequest;
 import com.sistventas.backend.dto.AjustePrecioCategoriaRequest;
 import com.sistventas.backend.dto.AjustePrecioCategoriaResultadoDto;
 import com.sistventas.backend.dto.CrearResenaRequest;
+import com.sistventas.backend.dto.DescripcionIaResponse;
+import com.sistventas.backend.dto.FotoUploadDto;
 import com.sistventas.backend.dto.ProductoDto;
 import com.sistventas.backend.dto.ProductoRequest;
 import com.sistventas.backend.dto.ResenaDto;
 import com.sistventas.backend.security.UserPrincipal;
 import com.sistventas.backend.service.CatalogoService;
+import com.sistventas.backend.service.DescripcionIaService;
 import com.sistventas.backend.service.ProductoService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpHeaders;
@@ -41,10 +44,15 @@ public class ProductoController {
 
     private final ProductoService productoService;
     private final CatalogoService catalogoService;
+    private final DescripcionIaService descripcionIaService;
 
-    public ProductoController(ProductoService productoService, CatalogoService catalogoService) {
+    public ProductoController(
+            ProductoService productoService,
+            CatalogoService catalogoService,
+            DescripcionIaService descripcionIaService) {
         this.productoService = productoService;
         this.catalogoService = catalogoService;
+        this.descripcionIaService = descripcionIaService;
     }
 
     @GetMapping
@@ -100,6 +108,28 @@ public class ProductoController {
             @RequestParam(value = "slot", defaultValue = "1") int slot,
             @AuthenticationPrincipal UserPrincipal principal) {
         return ResponseEntity.ok(productoService.eliminarFoto(id, slot, principal));
+    }
+
+    // Genérico, no atado a un producto/variante puntual — ver
+    // ProductoService.subirFotoVariante. Path fijo "/variantes/foto" (no
+    // "/{id}/...") para no chocar con el mapping de {id} de arriba.
+    @PostMapping(value = "/variantes/foto", consumes = "multipart/form-data")
+    public ResponseEntity<FotoUploadDto> subirFotoVariante(
+            @RequestParam("file") MultipartFile file,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(productoService.subirFotoVariante(file, principal));
+    }
+
+    // Sin {id}: se genera con la foto recién elegida, antes incluso de que
+    // el producto exista (ver productos.ts § generarDescripcionIa en el
+    // frontend). "nombre" es opcional, solo suma contexto al prompt.
+    @PostMapping(value = "/descripcion-ia", consumes = "multipart/form-data")
+    public ResponseEntity<DescripcionIaResponse> generarDescripcionIa(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "nombre", required = false) String nombre,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        String descripcion = descripcionIaService.generar(file, nombre, principal);
+        return ResponseEntity.ok(new DescripcionIaResponse(descripcion));
     }
 
     @PatchMapping("/ajuste-por-categoria")

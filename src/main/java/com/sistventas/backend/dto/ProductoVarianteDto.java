@@ -1,8 +1,9 @@
 package com.sistventas.backend.dto;
 
 // Variante de color de un producto, con su propio stock. fotoUrl nullable:
-// recién se usa en la tienda pública (Etapa 2), acá solo se expone si el
-// admin ya la cargó.
+// el admin la carga aparte con /api/productos/{id}/variantes/{varianteId}/foto,
+// puede no tener una todavía. Sin precioVenta a propósito — ver
+// ProductoVarianteRequest.
 public record ProductoVarianteDto(
         Long id,
         String color,

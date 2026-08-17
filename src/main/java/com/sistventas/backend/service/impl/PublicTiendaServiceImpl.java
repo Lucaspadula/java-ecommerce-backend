@@ -2,7 +2,10 @@ package com.sistventas.backend.service.impl;
 
 import com.sistventas.backend.dto.BannerImagenPublicaDto;
 import com.sistventas.backend.dto.CategoriaTiendaDto;
+import com.sistventas.backend.dto.FotoUploadDto;
 import com.sistventas.backend.dto.PreviewDescuentoComboDto;
+import com.sistventas.backend.dto.ProductoGrabadoDto;
+import com.sistventas.backend.dto.PublicComponenteDto;
 import com.sistventas.backend.dto.PreviewDescuentoComboRequest;
 import com.sistventas.backend.dto.PublicEmpresaDto;
 import com.sistventas.backend.dto.PublicPedidoEstadoDto;
@@ -21,6 +24,7 @@ import com.sistventas.backend.entity.Cliente;
 import com.sistventas.backend.entity.Empresa;
 import com.sistventas.backend.entity.EstadoVenta;
 import com.sistventas.backend.entity.Producto;
+import com.sistventas.backend.entity.ProductoGrabado;
 import com.sistventas.backend.entity.ProductoVariante;
 import com.sistventas.backend.entity.ReglaDescuentoCombo;
 import com.sistventas.backend.entity.Resena;
@@ -51,15 +55,22 @@ import com.sistventas.backend.repository.VentaRepository;
 import com.sistventas.backend.service.PublicTiendaService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -75,6 +86,12 @@ import java.util.stream.Collectors;
 @Service
 public class PublicTiendaServiceImpl implements PublicTiendaService {
 
+    // Directorio propio, separado de uploads/productos: la imagen la sube un
+    // visitante ANÓNIMO (sin JWT, sin empresaId de por medio) para adjuntarla
+    // a un pedido que todavía no existe — mismo criterio de "carpeta por
+    // ciclo de vida" que UPLOAD_DIR_RESENAS en ProductoServiceImpl.
+    private static final Path UPLOAD_DIR_GRABADOS = Paths.get("uploads", "grabados");
+
     private final EmpresaRepository empresaRepository;
     private final ProductoRepository productoRepository;
     private final ClienteRepository clienteRepository;
@@ -89,6 +106,7 @@ public class PublicTiendaServiceImpl implements PublicTiendaService {
     private final StockDisponibleCalculator stockDisponibleCalculator;
     private final ReglaDescuentoComboRepository reglaDescuentoComboRepository;
     private final CalculadorDescuentoComboService calculadorDescuentoComboService;
+    private final ImagenUploadValidator imagenUploadValidator;
 
     public PublicTiendaServiceImpl(EmpresaRepository empresaRepository,
                                     ProductoRepository productoRepository,
@@ -103,7 +121,8 @@ public class PublicTiendaServiceImpl implements PublicTiendaService {
                                     TiendaTipRepository tiendaTipRepository,
                                     StockDisponibleCalculator stockDisponibleCalculator,
                                     ReglaDescuentoComboRepository reglaDescuentoComboRepository,
-                                    CalculadorDescuentoComboService calculadorDescuentoComboService) {
+                                    CalculadorDescuentoComboService calculadorDescuentoComboService,
+                                    ImagenUploadValidator imagenUploadValidator) {
         this.empresaRepository = empresaRepository;
         this.productoRepository = productoRepository;
         this.clienteRepository = clienteRepository;
@@ -118,6 +137,7 @@ public class PublicTiendaServiceImpl implements PublicTiendaService {
         this.stockDisponibleCalculator = stockDisponibleCalculator;
         this.reglaDescuentoComboRepository = reglaDescuentoComboRepository;
         this.calculadorDescuentoComboService = calculadorDescuentoComboService;
+        this.imagenUploadValidator = imagenUploadValidator;
     }
 
     @Override
@@ -143,6 +163,7 @@ public class PublicTiendaServiceImpl implements PublicTiendaService {
                 empresa.getTiendaContactoInstagram(),
                 empresa.getTiendaContactoEmail(),
                 empresa.getTiendaFuente(),
+                empresa.getTiendaTema(),
                 bannerVerticales,
                 empresa.getTiendaBannerVerticalPosicion(),
                 empresa.getTiendaRazonSocial(),
@@ -150,6 +171,29 @@ public class PublicTiendaServiceImpl implements PublicTiendaService {
                 empresa.getTiendaDireccion(),
                 empresa.getTiendaSobreNosotros()
         );
+    }
+
+    @Override
+    public FotoUploadDto subirFotoGrabado(String slug, MultipartFile file) {
+        // No persiste nada, mismo criterio que ProductoServiceImpl.
+        // subirFotoVariante: solo valida y escribe a disco, el cliente asocia
+        // la URL resultante a un item recién al mandar POST .../pedidos. Se
+        // valida el slug igual (no cualquier string arbitrario) aunque no se
+        // use el resultado, para no dejar esto como un drop-box anónimo de
+        // archivos sin ninguna relación con una tienda real.
+        resolverEmpresa(slug);
+        String extension = imagenUploadValidator.validarYObtenerExtension(file);
+        String nombreArchivo = UUID.randomUUID() + extension;
+
+        try {
+            Files.createDirectories(UPLOAD_DIR_GRABADOS);
+            Path destino = UPLOAD_DIR_GRABADOS.resolve(nombreArchivo);
+            file.transferTo(destino);
+        } catch (IOException ex) {
+            throw new UncheckedIOException("No se pudo guardar la imagen", ex);
+        }
+
+        return new FotoUploadDto("/uploads/grabados/" + nombreArchivo);
     }
 
     @Override
@@ -293,9 +337,42 @@ public class PublicTiendaServiceImpl implements PublicTiendaService {
             }
 
             // Nunca se acepta un precio que venga del pedido público: siempre
-            // sale del producto persistido.
+            // sale del producto persistido. Todas las variantes cobran el
+            // mismo precioVenta del Producto (sin override por color, ver
+            // ProductoVarianteRequest).
             BigDecimal precioUnitario = producto.getPrecioVenta();
-            BigDecimal subtotalItem = precioUnitario.multiply(BigDecimal.valueOf(itemRequest.cantidad()));
+
+            // Grabado personalizado: opcional. Cada id de grabadoLugarIds
+            // tiene que pertenecer a ESTE producto — se resuelve acá contra
+            // el producto persistido, nunca se confía en un precio/lugar que
+            // mande el cliente. Sin selección = sin cargo extra, item.
+            // personalizacion queda null (comportamiento de siempre para
+            // productos sin esta opción). precioUnitario del item NO incluye
+            // el grabado a propósito (sigue siendo el precio de lista del
+            // producto, para que cálculos de margen/reportes no se
+            // contaminen); el cargo del servicio va directo al subtotal.
+            BigDecimal precioGrabadoUnitario = BigDecimal.ZERO;
+            String personalizacion = null;
+            List<Long> grabadoLugarIds = itemRequest.grabadoLugarIds();
+            if (grabadoLugarIds != null && !grabadoLugarIds.isEmpty()) {
+                List<ProductoGrabado> lugaresElegidos = grabadoLugarIds.stream()
+                        .map(lugarId -> producto.getGrabados().stream()
+                                .filter(g -> g.getId().equals(lugarId))
+                                .findFirst()
+                                .orElseThrow(ProductoNoEncontradoException::new))
+                        .toList();
+                precioGrabadoUnitario = lugaresElegidos.stream()
+                        .map(ProductoGrabado::getPrecio)
+                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+                String lugares = lugaresElegidos.stream()
+                        .map(ProductoGrabado::getLugar)
+                        .collect(Collectors.joining(", "));
+                String textoGrabado = vacioComoNull(itemRequest.grabadoTexto());
+                personalizacion = "Grabado en: " + lugares + (textoGrabado != null ? " — Texto: " + textoGrabado : "");
+            }
+
+            BigDecimal subtotalItem = precioUnitario.add(precioGrabadoUnitario)
+                    .multiply(BigDecimal.valueOf(itemRequest.cantidad()));
 
             VentaItem item = new VentaItem();
             item.setVenta(venta);
@@ -304,6 +381,8 @@ public class PublicTiendaServiceImpl implements PublicTiendaService {
             item.setCantidad(itemRequest.cantidad());
             item.setPrecioUnitario(precioUnitario);
             item.setSubtotal(subtotalItem);
+            item.setPersonalizacion(personalizacion);
+            item.setGrabadoImagenUrl(vacioComoNull(itemRequest.grabadoImagenUrl()));
             if (variante != null) {
                 item.setVarianteId(variante.getId());
                 // Snapshot, no un join en vivo: si el color se borra del form
@@ -506,18 +585,30 @@ public class PublicTiendaServiceImpl implements PublicTiendaService {
                         variante.getColor(),
                         stockDisponibleCalculator.calcularVariante(variante)))
                 .toList();
+        List<PublicComponenteDto> componentes = producto.getComponentes().stream()
+                .map(componente -> new PublicComponenteDto(
+                        componente.getComponenteProducto().getNombre(),
+                        componente.getCantidad()))
+                .toList();
+        List<ProductoGrabadoDto> grabados = producto.getGrabados().stream()
+                .map(grabado -> new ProductoGrabadoDto(grabado.getId(), grabado.getLugar(), grabado.getPrecio()))
+                .toList();
         return new PublicProductoDto(
                 producto.getId(),
                 producto.getNombre(),
                 producto.getDescripcion(),
                 producto.getCategoria().getNombre(),
+                producto.getCategoria().getId(),
+                producto.getSubcategoria() != null ? producto.getSubcategoria().getId() : null,
                 producto.getPrecioVenta(),
                 producto.getFotoUrl(),
                 producto.getFotoUrl2(),
                 producto.getFotoUrl3(),
                 stockDisponibleCalculator.calcular(producto),
                 resenaDestacada,
-                variantes
+                variantes,
+                componentes,
+                grabados
         );
     }
 }

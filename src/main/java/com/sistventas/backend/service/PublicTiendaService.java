@@ -1,6 +1,7 @@
 package com.sistventas.backend.service;
 
 import com.sistventas.backend.dto.CategoriaTiendaDto;
+import com.sistventas.backend.dto.FotoUploadDto;
 import com.sistventas.backend.dto.PreviewDescuentoComboDto;
 import com.sistventas.backend.dto.PreviewDescuentoComboRequest;
 import com.sistventas.backend.dto.PublicEmpresaDto;
@@ -11,6 +12,7 @@ import com.sistventas.backend.dto.PublicProductoDto;
 import com.sistventas.backend.dto.PublicTestimonioDto;
 import com.sistventas.backend.dto.PublicTipDto;
 import com.sistventas.backend.dto.ResenaDto;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -18,6 +20,10 @@ import java.util.List;
 // empresa se resuelve siempre a partir del slug de la URL.
 public interface PublicTiendaService {
     PublicEmpresaDto obtenerEmpresa(String slug);
+
+    // Sube la imagen del grabado (logo/diseño) ANTES de armar el pedido — el
+    // cliente manda la URL resultante en PublicPedidoItemRequest.grabadoImagenUrl.
+    FotoUploadDto subirFotoGrabado(String slug, MultipartFile file);
 
     List<PublicProductoDto> listarProductos(String slug);
 

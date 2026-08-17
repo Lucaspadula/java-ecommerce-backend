@@ -27,6 +27,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
 
     private static final Pattern PEDIDO_CREATE = Pattern.compile("^/api/public/tienda/[^/]+/pedidos$");
     private static final Pattern PEDIDO_CONSULTA = Pattern.compile("^/api/public/tienda/[^/]+/pedidos/[^/]+$");
+    private static final Pattern GRABADO_FOTO = Pattern.compile("^/api/public/tienda/[^/]+/grabado/foto$");
 
     private final ConcurrentHashMap<String, Bucket> buckets = new ConcurrentHashMap<>();
 
@@ -62,6 +63,9 @@ public class RateLimitFilter extends OncePerRequestFilter {
         if ("GET".equals(method) && PEDIDO_CONSULTA.matcher(path).matches()) {
             return Regla.PEDIDO_CONSULTA;
         }
+        if ("POST".equals(method) && GRABADO_FOTO.matcher(path).matches()) {
+            return Regla.GRABADO_FOTO;
+        }
         return null;
     }
 
@@ -69,7 +73,10 @@ public class RateLimitFilter extends OncePerRequestFilter {
     private enum Regla {
         LOGIN(8, Duration.ofMinutes(5)),
         PEDIDO_CREATE(10, Duration.ofMinutes(5)),
-        PEDIDO_CONSULTA(20, Duration.ofMinutes(5));
+        PEDIDO_CONSULTA(20, Duration.ofMinutes(5)),
+        // Subida de archivo, sin JWT: más cara que un simple POST de datos,
+        // límite más ajustado que PEDIDO_CREATE.
+        GRABADO_FOTO(6, Duration.ofMinutes(5));
 
         private final int capacidad;
         private final Duration ventana;
