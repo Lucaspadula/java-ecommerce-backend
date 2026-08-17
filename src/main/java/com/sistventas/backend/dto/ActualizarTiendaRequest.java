@@ -52,6 +52,12 @@ public record ActualizarTiendaRequest(
         @Size(max = 20, message = "La tipografía no puede superar los 20 caracteres")
         String tiendaFuente,
 
+        // Opcional: si viene null/vacío, se guarda "claro" (ver
+        // PerfilServiceImpl.actualizarTienda). Valores válidos: "claro",
+        // "oscuro", "negro-dorado", "marino-dorado", "ciruela-oliva".
+        @Size(max = 20, message = "El tema no puede superar los 20 caracteres")
+        String tiendaTema,
+
         // Opcional: null = sección de banners verticales sin ubicación
         // configurada, no se muestra en la tienda pública aunque haya
         // imágenes cargadas. La lista de 4 valores válidos la controla el

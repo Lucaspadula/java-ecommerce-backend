@@ -13,6 +13,7 @@ public record PublicEmpresaDto(
         String contactoInstagram,
         String contactoEmail,
         String tiendaFuente,
+        String tiendaTema,
         // Sección nueva, separada del hero (bannerImagenes de arriba): hasta
         // 12 imágenes verticales, cada una con producto opcional. Se muestra
         // en la tienda pública solo si esta lista no está vacía Y

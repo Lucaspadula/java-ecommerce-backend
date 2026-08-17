@@ -73,6 +73,24 @@ public class Empresa {
     @Column(name = "tienda_fuente", nullable = false, length = 20)
     private String tiendaFuente = "clasica";
 
+    // Paleta de color de marca de la tienda pública. Valores válidos: "claro"
+    // (default), "oscuro", "negro-dorado", "marino-dorado", "ciruela-oliva"
+    // (ver styles.css/tienda-publica.css en el frontend para los tokens de
+    // cada uno). Mismo criterio que tiendaFuente: String simple, no enum,
+    // la lista cerrada la controla el <select> del frontend.
+    @Column(name = "tienda_tema", nullable = false, length = 20)
+    private String tiendaTema = "claro";
+
+    // Key propia de Gemini para generar la descripción sugerida con IA
+    // (Productos > lápiz sobre la foto > "Generar con IA"). Nullable a
+    // propósito: sin key propia, DescripcionIaServiceImpl cae a
+    // sistventas.gemini.api-key (variable de entorno global) — así el
+    // sistema sigue funcionando para empresas que todavía no cargaron la
+    // suya. Nunca se devuelve en texto plano por API una vez guardada (ver
+    // PerfilDto.geminiApiKeyConfigurada) — solo se puede reemplazar, no leer.
+    @Column(name = "gemini_api_key")
+    private String geminiApiKey;
+
     // Dónde se renderiza la sección de banners verticales en la tienda
     // pública (ver PublicEmpresaDto.bannerVerticalPosicion /
     // tienda-publica.ts). Nullable a propósito: null = "nunca configurado",
@@ -152,6 +170,12 @@ public class Empresa {
 
     public String getTiendaFuente() { return tiendaFuente; }
     public void setTiendaFuente(String tiendaFuente) { this.tiendaFuente = tiendaFuente; }
+
+    public String getTiendaTema() { return tiendaTema; }
+    public void setTiendaTema(String tiendaTema) { this.tiendaTema = tiendaTema; }
+
+    public String getGeminiApiKey() { return geminiApiKey; }
+    public void setGeminiApiKey(String geminiApiKey) { this.geminiApiKey = geminiApiKey; }
 
     public String getTiendaBannerVerticalPosicion() { return tiendaBannerVerticalPosicion; }
     public void setTiendaBannerVerticalPosicion(String tiendaBannerVerticalPosicion) { this.tiendaBannerVerticalPosicion = tiendaBannerVerticalPosicion; }
