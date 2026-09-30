@@ -46,6 +46,9 @@ class TiendaCategoriaServiceImplTest {
     @Mock
     private CategoriaRepository categoriaRepository;
 
+    @Mock
+    private ImagenUploadValidator imagenUploadValidator;
+
     @InjectMocks
     private TiendaCategoriaServiceImpl tiendaCategoriaService;
 
@@ -119,13 +122,12 @@ class TiendaCategoriaServiceImplTest {
     }
 
     @Test
-    void actualizarImagenConContentTypeInvalidoLanzaExcepcionYNoGuarda() {
+    void actualizarImagenConArchivoInvalidoLanzaExcepcionYNoGuarda() {
         Categoria mates = categoria(1L, "Mates");
         when(categoriaRepository.findByIdAndEmpresaId(1L, EMPRESA_ID)).thenReturn(Optional.of(mates));
 
         MultipartFile file = mock(MultipartFile.class);
-        when(file.isEmpty()).thenReturn(false);
-        when(file.getContentType()).thenReturn("image/jpeg");
+        when(imagenUploadValidator.validarYObtenerExtension(file)).thenThrow(new ArchivoInvalidoException("inválido"));
 
         assertThatThrownBy(() -> tiendaCategoriaService.actualizarImagen(1L, file, principal))
                 .isInstanceOf(ArchivoInvalidoException.class);
@@ -141,8 +143,7 @@ class TiendaCategoriaServiceImplTest {
         when(tiendaCategoriaRepository.save(any(TiendaCategoria.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         MultipartFile file = mock(MultipartFile.class);
-        when(file.isEmpty()).thenReturn(false);
-        when(file.getContentType()).thenReturn("image/png");
+        when(imagenUploadValidator.validarYObtenerExtension(file)).thenReturn(".png");
 
         CategoriaTiendaDto resultado = tiendaCategoriaService.actualizarImagen(1L, file, principal);
 

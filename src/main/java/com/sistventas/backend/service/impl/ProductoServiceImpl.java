@@ -3,11 +3,13 @@ package com.sistventas.backend.service.impl;
 import com.sistventas.backend.dto.ActualizarProductoRequest;
 import com.sistventas.backend.dto.AjustePrecioCategoriaRequest;
 import com.sistventas.backend.dto.AjustePrecioCategoriaResultadoDto;
+import com.sistventas.backend.dto.AtributoFiltroValorDto;
 import com.sistventas.backend.dto.CrearResenaRequest;
 import com.sistventas.backend.dto.FotoUploadDto;
 import com.sistventas.backend.dto.ProductoComponenteDto;
 import com.sistventas.backend.dto.ProductoComponenteRequest;
 import com.sistventas.backend.dto.ProductoDto;
+import com.sistventas.backend.dto.ProductoFotoDto;
 import com.sistventas.backend.dto.ProductoGrabadoDto;
 import com.sistventas.backend.dto.ProductoGrabadoRequest;
 import com.sistventas.backend.dto.ProductoInsumoDto;
@@ -17,23 +19,30 @@ import com.sistventas.backend.dto.ProductoVarianteDto;
 import com.sistventas.backend.dto.ProductoVarianteRequest;
 import com.sistventas.backend.dto.ResenaDto;
 import com.sistventas.backend.dto.TipoAjustePrecio;
+import com.sistventas.backend.entity.AtributoFiltro;
+import com.sistventas.backend.entity.AtributoFiltroValor;
 import com.sistventas.backend.entity.Categoria;
 import com.sistventas.backend.entity.Insumo;
 import com.sistventas.backend.entity.Producto;
 import com.sistventas.backend.entity.ProductoComponente;
+import com.sistventas.backend.entity.ProductoFoto;
 import com.sistventas.backend.entity.ProductoGrabado;
 import com.sistventas.backend.entity.ProductoInsumo;
 import com.sistventas.backend.entity.ProductoVariante;
 import com.sistventas.backend.entity.Resena;
 import com.sistventas.backend.entity.Subcategoria;
 import com.sistventas.backend.exception.ArchivoInvalidoException;
+import com.sistventas.backend.exception.AtributoFiltroValorNoEncontradoException;
 import com.sistventas.backend.exception.CategoriaNoEncontradaException;
 import com.sistventas.backend.exception.InsumoNoEncontradoException;
 import com.sistventas.backend.exception.ProductoComponenteInvalidoException;
+import com.sistventas.backend.exception.ProductoFotoNoEncontradaException;
 import com.sistventas.backend.exception.ProductoNoEncontradoException;
 import com.sistventas.backend.exception.ResenaNoEncontradaException;
 import com.sistventas.backend.exception.SinEmpresaException;
 import com.sistventas.backend.exception.SubcategoriaNoEncontradaException;
+import com.sistventas.backend.repository.AtributoFiltroRepository;
+import com.sistventas.backend.repository.AtributoFiltroValorRepository;
 import com.sistventas.backend.repository.CategoriaRepository;
 import com.sistventas.backend.repository.InsumoRepository;
 import com.sistventas.backend.repository.ProductoRepository;
@@ -54,6 +63,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -74,23 +84,32 @@ public class ProductoServiceImpl implements ProductoService {
     private final ResenaRepository resenaRepository;
     private final CategoriaRepository categoriaRepository;
     private final SubcategoriaRepository subcategoriaRepository;
+    private final AtributoFiltroRepository atributoFiltroRepository;
+    private final AtributoFiltroValorRepository atributoFiltroValorRepository;
     private final StockDisponibleCalculator stockDisponibleCalculator;
     private final ImagenUploadValidator imagenUploadValidator;
+    private final ProductoFotoResolver productoFotoResolver;
 
     public ProductoServiceImpl(ProductoRepository productoRepository,
                                 InsumoRepository insumoRepository,
                                 ResenaRepository resenaRepository,
                                 CategoriaRepository categoriaRepository,
                                 SubcategoriaRepository subcategoriaRepository,
+                                AtributoFiltroRepository atributoFiltroRepository,
+                                AtributoFiltroValorRepository atributoFiltroValorRepository,
                                 StockDisponibleCalculator stockDisponibleCalculator,
-                                ImagenUploadValidator imagenUploadValidator) {
+                                ImagenUploadValidator imagenUploadValidator,
+                                ProductoFotoResolver productoFotoResolver) {
         this.productoRepository = productoRepository;
         this.insumoRepository = insumoRepository;
         this.resenaRepository = resenaRepository;
         this.categoriaRepository = categoriaRepository;
         this.subcategoriaRepository = subcategoriaRepository;
+        this.atributoFiltroRepository = atributoFiltroRepository;
+        this.atributoFiltroValorRepository = atributoFiltroValorRepository;
         this.stockDisponibleCalculator = stockDisponibleCalculator;
         this.imagenUploadValidator = imagenUploadValidator;
+        this.productoFotoResolver = productoFotoResolver;
     }
 
     @Override
@@ -120,7 +139,8 @@ public class ProductoServiceImpl implements ProductoService {
         aplicarDatosComunes(producto, request.nombre(), request.categoriaId(), request.subcategoriaId(),
                 request.descripcion(), request.precioVenta(), request.precioPorMayor(),
                 request.cantidadMinimaMayorista(), request.insumos(), request.variantes(),
-                request.componentes(), request.grabados(), request.stock(), request.costoUnitario(), empresaId);
+                request.componentes(), request.grabados(), request.stock(), request.costoUnitario(), empresaId,
+                request.atributoValorIds());
 
         return toDto(productoRepository.save(producto));
     }
@@ -133,7 +153,8 @@ public class ProductoServiceImpl implements ProductoService {
         aplicarDatosComunes(producto, request.nombre(), request.categoriaId(), request.subcategoriaId(),
                 request.descripcion(), request.precioVenta(), request.precioPorMayor(),
                 request.cantidadMinimaMayorista(), request.insumos(), request.variantes(),
-                request.componentes(), request.grabados(), request.stock(), request.costoUnitario(), empresaId);
+                request.componentes(), request.grabados(), request.stock(), request.costoUnitario(), empresaId,
+                request.atributoValorIds());
         return toDto(productoRepository.save(producto));
     }
 
@@ -147,9 +168,18 @@ public class ProductoServiceImpl implements ProductoService {
 
     @Override
     @Transactional
-    public ProductoDto actualizarFoto(Long id, MultipartFile file, int slot, UserPrincipal principal) {
-        validarSlot(slot);
+    public ProductoDto agregarFoto(Long id, MultipartFile file, Long varianteId, UserPrincipal principal) {
         Producto producto = buscarPorEmpresa(id, principal);
+
+        // Tope 8 validado ANTES de escribir nada a disco (ver design Open
+        // Question): un intento rechazado no debe dejar un archivo huérfano.
+        if (producto.getFotos().size() >= 8) {
+            throw new ArchivoInvalidoException("Máximo 8 fotos por producto");
+        }
+        if (varianteId != null) {
+            buscarVarianteDelProducto(producto, varianteId);
+        }
+
         String extension = imagenUploadValidator.validarYObtenerExtension(file);
         String nombreArchivo = producto.getId() + "-" + UUID.randomUUID() + extension;
 
@@ -161,42 +191,96 @@ public class ProductoServiceImpl implements ProductoService {
             throw new UncheckedIOException("No se pudo guardar la imagen", ex);
         }
 
-        setFotoSlot(producto, slot, "/uploads/productos/" + nombreArchivo);
+        ProductoFoto foto = new ProductoFoto();
+        foto.setProducto(producto);
+        foto.setVarianteId(varianteId);
+        foto.setUrl("/uploads/productos/" + nombreArchivo);
+        foto.setOrden(producto.getFotos().size());
+        producto.getFotos().add(foto);
+
         return toDto(productoRepository.save(producto));
     }
 
     @Override
     @Transactional
-    public ProductoDto eliminarFoto(Long id, int slot, UserPrincipal principal) {
-        validarSlot(slot);
+    public ProductoDto eliminarFoto(Long id, Long fotoId, UserPrincipal principal) {
         Producto producto = buscarPorEmpresa(id, principal);
-        borrarArchivoSiExiste(getFotoSlot(producto, slot));
-        setFotoSlot(producto, slot, null);
+        ProductoFoto foto = buscarFotoDelProducto(producto, fotoId);
+
+        borrarArchivoSiExiste(foto.getUrl());
+        producto.getFotos().remove(foto);
+        reindexarOrden(producto);
+
         return toDto(productoRepository.save(producto));
     }
 
-    private void validarSlot(int slot) {
-        if (slot < 1 || slot > 3) {
-            throw new ArchivoInvalidoException("El slot debe ser 1, 2 o 3");
+    @Override
+    @Transactional
+    public ProductoDto reordenarFotos(Long id, List<Long> fotoIds, UserPrincipal principal) {
+        Producto producto = buscarPorEmpresa(id, principal);
+        Map<Long, ProductoFoto> porId = producto.getFotos().stream()
+                .collect(Collectors.toMap(ProductoFoto::getId, foto -> foto));
+
+        // Cualquier id que no pertenezca a ESTE producto (foto de otro
+        // producto, o inexistente) rechaza toda la operación — mismo criterio
+        // "todo o nada" que aplicarComponentes.
+        for (Long fotoId : fotoIds) {
+            if (!porId.containsKey(fotoId)) {
+                throw new ProductoFotoNoEncontradaException();
+            }
         }
+
+        for (int orden = 0; orden < fotoIds.size(); orden++) {
+            porId.get(fotoIds.get(orden)).setOrden(orden);
+        }
+
+        return toDto(productoRepository.save(producto));
     }
 
-    // Único punto que traduce slot -> campo de Producto, tanto para leer
-    // (eliminarFoto necesita la URL vieja antes de pisarla) como para
-    // escribir (actualizarFoto).
-    private String getFotoSlot(Producto producto, int slot) {
-        return switch (slot) {
-            case 1 -> producto.getFotoUrl();
-            case 2 -> producto.getFotoUrl2();
-            default -> producto.getFotoUrl3();
-        };
+    @Override
+    @Transactional
+    public ProductoDto asignarColorFoto(Long id, Long fotoId, Long varianteId, UserPrincipal principal) {
+        Producto producto = buscarPorEmpresa(id, principal);
+        ProductoFoto foto = buscarFotoDelProducto(producto, fotoId);
+        if (varianteId != null) {
+            buscarVarianteDelProducto(producto, varianteId);
+        }
+        foto.setVarianteId(varianteId);
+        return toDto(productoRepository.save(producto));
     }
 
-    private void setFotoSlot(Producto producto, int slot, String url) {
-        switch (slot) {
-            case 1 -> producto.setFotoUrl(url);
-            case 2 -> producto.setFotoUrl2(url);
-            default -> producto.setFotoUrl3(url);
+    @Override
+    @Transactional
+    public ProductoDto ajustarFoto(Long id, Long fotoId, boolean agrandada, UserPrincipal principal) {
+        Producto producto = buscarPorEmpresa(id, principal);
+        ProductoFoto foto = buscarFotoDelProducto(producto, fotoId);
+        foto.setAgrandada(agrandada);
+        return toDto(productoRepository.save(producto));
+    }
+
+    private ProductoFoto buscarFotoDelProducto(Producto producto, Long fotoId) {
+        return producto.getFotos().stream()
+                .filter(foto -> foto.getId().equals(fotoId))
+                .findFirst()
+                .orElseThrow(ProductoFotoNoEncontradaException::new);
+    }
+
+    private ProductoVariante buscarVarianteDelProducto(Producto producto, Long varianteId) {
+        return producto.getVariantes().stream()
+                .filter(variante -> variante.getId().equals(varianteId))
+                .findFirst()
+                .orElseThrow(ProductoNoEncontradoException::new);
+    }
+
+    // Tras un borrado, compacta el orden de las fotos restantes a 0..n-1 —
+    // mismo criterio que reordenarFotos, para que el próximo agregarFoto
+    // (que apila al final con producto.getFotos().size()) no deje huecos.
+    private void reindexarOrden(Producto producto) {
+        List<ProductoFoto> ordenadas = producto.getFotos().stream()
+                .sorted(Comparator.comparingInt(ProductoFoto::getOrden))
+                .toList();
+        for (int orden = 0; orden < ordenadas.size(); orden++) {
+            ordenadas.get(orden).setOrden(orden);
         }
     }
 
@@ -318,8 +402,8 @@ public class ProductoServiceImpl implements ProductoService {
     }
 
     private ResenaDto toResenaDto(Resena resena) {
-        return new ResenaDto(resena.getId(), resena.getClienteNombre(), resena.getComentario(), resena.getFecha(),
-                resena.getImagenUrl());
+        return new ResenaDto(resena.getId(), resena.getClienteNombre(), resena.getComentario(),
+                resena.getPuntuacion(), resena.getFecha(), resena.getImagenUrl(), resena.getVentaId() != null);
     }
 
     // Nunca deja el precio negativo: un ajuste porcentual/monto fijo mal
@@ -341,7 +425,8 @@ public class ProductoServiceImpl implements ProductoService {
                                       List<ProductoVarianteRequest> variantesRequest,
                                       List<ProductoComponenteRequest> componentesRequest,
                                       List<ProductoGrabadoRequest> grabadosRequest,
-                                      Integer stock, BigDecimal costoUnitario, Long empresaId) {
+                                      Integer stock, BigDecimal costoUnitario, Long empresaId,
+                                      List<Long> atributoValorIds) {
         producto.setNombre(nombre);
         producto.setCategoria(buscarCategoriaPorEmpresa(categoriaId, empresaId));
         producto.setSubcategoria(subcategoriaId != null
@@ -351,10 +436,10 @@ public class ProductoServiceImpl implements ProductoService {
         producto.setPrecioVenta(precioVenta);
         producto.setPrecioPorMayor(precioPorMayor);
         producto.setCantidadMinimaMayorista(cantidadMinimaMayorista);
-        // Ambos solo importan de verdad para un producto SIN receta ni kit
-        // (ver StockDisponibleCalculator.calcular/costoEfectivo) — para
-        // cualquier otro caso se persisten igual pero quedan inertes, nadie
-        // los lee como fuente de verdad.
+        // Stock solo importa de verdad para un producto SIN receta ni kit
+        // (ver StockDisponibleCalculator.calcular) — con receta o kit queda
+        // inerte, nadie lo lee como fuente de verdad. costoUnitario en
+        // cambio SIEMPRE se suma al costo (ver costoEfectivo más abajo).
         producto.setStock(stock != null ? stock : 0);
         producto.setCostoUnitario(costoUnitario);
 
@@ -376,6 +461,29 @@ public class ProductoServiceImpl implements ProductoService {
         aplicarVariantes(producto, variantesRequest);
         aplicarComponentes(producto, componentesRequest, empresaId);
         aplicarGrabados(producto, grabadosRequest);
+        aplicarAtributoValores(producto, atributoValorIds, categoriaId);
+    }
+
+    // Reemplazo completo (mismo criterio que insumos/grabados): cada id tiene
+    // que ser un AtributoFiltroValor de un AtributoFiltro de LA categoría
+    // elegida — nunca se confía en un id que venga del cliente sin validar
+    // esa pertenencia (mismo criterio que buscarSubcategoriaDeCategoria).
+    private void aplicarAtributoValores(Producto producto, List<Long> atributoValorIds, Long categoriaId) {
+        producto.getAtributoValores().clear();
+        if (atributoValorIds == null || atributoValorIds.isEmpty()) {
+            return;
+        }
+        List<Long> atributoIdsDeLaCategoria = atributoFiltroRepository.findByCategoriaIdOrderByOrdenAsc(categoriaId).stream()
+                .map(AtributoFiltro::getId)
+                .toList();
+        for (Long valorId : atributoValorIds) {
+            AtributoFiltroValor valor = atributoFiltroValorRepository.findById(valorId)
+                    .orElseThrow(AtributoFiltroValorNoEncontradoException::new);
+            if (!atributoIdsDeLaCategoria.contains(valor.getAtributoFiltroId())) {
+                throw new AtributoFiltroValorNoEncontradoException();
+            }
+            producto.getAtributoValores().add(valor);
+        }
     }
 
     // Lugares grabables: reemplazo completo, mismo patrón que insumos/
@@ -451,7 +559,7 @@ public class ProductoServiceImpl implements ProductoService {
             }
             variante.setColor(varianteRequest.color());
             variante.setStock(varianteRequest.stock());
-            variante.setFotoUrl(varianteRequest.fotoUrl());
+            variante.setColorHex(varianteRequest.colorHex());
             resultado.add(variante);
         }
 
@@ -494,17 +602,26 @@ public class ProductoServiceImpl implements ProductoService {
     }
 
     private ProductoDto toDto(Producto producto) {
+        List<ProductoFoto> fotosOrdenadas = producto.getFotos().stream()
+                .sorted(Comparator.comparingInt(ProductoFoto::getOrden))
+                .toList();
+        List<ProductoFotoDto> fotos = fotosOrdenadas.stream()
+                .map(foto -> new ProductoFotoDto(foto.getId(), foto.getUrl(), foto.getVarianteId(), foto.getOrden(), foto.isAgrandada()))
+                .toList();
         List<ProductoInsumoDto> insumos = producto.getInsumos().stream()
                 .map(this::toProductoInsumoDto)
                 .toList();
         List<ProductoVarianteDto> variantes = producto.getVariantes().stream()
-                .map(this::toProductoVarianteDto)
+                .map(variante -> toProductoVarianteDto(variante, fotosOrdenadas))
                 .toList();
         List<ProductoComponenteDto> componentes = producto.getComponentes().stream()
                 .map(this::toProductoComponenteDto)
                 .toList();
         List<ProductoGrabadoDto> grabados = producto.getGrabados().stream()
                 .map(this::toProductoGrabadoDto)
+                .toList();
+        List<AtributoFiltroValorDto> atributoValores = producto.getAtributoValores().stream()
+                .map(valor -> new AtributoFiltroValorDto(valor.getId(), valor.getValor()))
                 .toList();
 
         return new ProductoDto(
@@ -520,9 +637,9 @@ public class ProductoServiceImpl implements ProductoService {
                 producto.getPrecioVenta(),
                 producto.getPrecioPorMayor(),
                 producto.getCantidadMinimaMayorista(),
-                producto.getFotoUrl(),
-                producto.getFotoUrl2(),
-                producto.getFotoUrl3(),
+                // Derivado (ya no una columna): ver ProductoFotoResolver.
+                productoFotoResolver.resolverMiniatura(fotosOrdenadas),
+                fotos,
                 // Calculado vía StockDisponibleCalculator (compartido con
                 // PublicTiendaServiceImpl): así todo el sistema ve siempre el
                 // mismo número sin saber si es un valor cargado a mano o
@@ -530,17 +647,25 @@ public class ProductoServiceImpl implements ProductoService {
                 // para el criterio completo.
                 stockDisponibleCalculator.calcular(producto),
                 costoEfectivo(producto, insumos),
+                producto.getCostoUnitario(),
                 insumos,
                 variantes,
                 componentes,
-                grabados
+                grabados,
+                atributoValores
         );
     }
 
-    private ProductoVarianteDto toProductoVarianteDto(ProductoVariante variante) {
+    private ProductoVarianteDto toProductoVarianteDto(ProductoVariante variante, List<ProductoFoto> fotosOrdenadas) {
+        String fotoUrl = variante.getId() != null
+                ? productoFotoResolver.fotosDeVariante(fotosOrdenadas, variante.getId()).stream()
+                        .findFirst()
+                        .map(ProductoFoto::getUrl)
+                        .orElse(null)
+                : null;
         return new ProductoVarianteDto(
                 variante.getId(), variante.getColor(), variante.getStock(),
-                variante.getFotoUrl());
+                fotoUrl, variante.getColorHex());
     }
 
     private ProductoGrabadoDto toProductoGrabadoDto(ProductoGrabado grabado) {
@@ -567,14 +692,14 @@ public class ProductoServiceImpl implements ProductoService {
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
-    // Con receta, el costo sigue saliendo siempre de sumar los insumos (como
-    // toda la vida). SIN receta, no hay de dónde sumarlo — ahí se usa el
-    // costoUnitario propio que cargó el usuario a mano (0 si no cargó nada).
+    // El costo unitario propio (lo que le costó al usuario producir/comprar
+    // ESE producto) y el costo de la receta de insumos (extras como bolsa o
+    // sticker) son conceptos independientes: uno no reemplaza al otro. Antes
+    // el costo de la receta pisaba por completo el costoUnitario apenas
+    // había una línea de insumos — este suma siempre ambos.
     private BigDecimal costoEfectivo(Producto producto, List<ProductoInsumoDto> insumos) {
-        if (!producto.getInsumos().isEmpty()) {
-            return calcularCostoUnitario(insumos);
-        }
-        return producto.getCostoUnitario() != null ? producto.getCostoUnitario() : BigDecimal.ZERO;
+        BigDecimal costoPropio = producto.getCostoUnitario() != null ? producto.getCostoUnitario() : BigDecimal.ZERO;
+        return costoPropio.add(calcularCostoUnitario(insumos));
     }
 
     private ProductoInsumoDto toProductoInsumoDto(ProductoInsumo productoInsumo) {

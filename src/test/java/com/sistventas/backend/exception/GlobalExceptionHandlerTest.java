@@ -269,15 +269,6 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
-    void testimonioNoEncontradoDevuelve404() {
-        ResponseEntity<Map<String, String>> response =
-                handler.handleTestimonioNoEncontrado(new TestimonioNoEncontradoException());
-
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
-        assertThat(response.getBody()).containsExactly(Map.entry("error", "Testimonio no encontrado"));
-    }
-
-    @Test
     void tipNoEncontradoDevuelve404() {
         ResponseEntity<Map<String, String>> response =
                 handler.handleTipNoEncontrado(new TipNoEncontradoException());

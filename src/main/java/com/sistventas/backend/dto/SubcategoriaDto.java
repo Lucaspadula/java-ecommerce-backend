@@ -4,5 +4,6 @@ package com.sistventas.backend.dto;
 // Subcategoria).
 public record SubcategoriaDto(
         Long id,
-        String nombre
+        String nombre,
+        String imagenUrl
 ) {}

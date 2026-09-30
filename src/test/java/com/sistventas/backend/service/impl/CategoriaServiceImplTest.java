@@ -7,8 +7,13 @@ import com.sistventas.backend.dto.SubcategoriaDto;
 import com.sistventas.backend.entity.Categoria;
 import com.sistventas.backend.entity.RolEmpresa;
 import com.sistventas.backend.entity.Subcategoria;
+import com.sistventas.backend.exception.AccesoRestringidoAdminException;
+import com.sistventas.backend.exception.ArchivoInvalidoException;
 import com.sistventas.backend.exception.CategoriaNoEncontradaException;
 import com.sistventas.backend.exception.SinEmpresaException;
+import com.sistventas.backend.exception.SubcategoriaNoEncontradaException;
+import com.sistventas.backend.repository.AtributoFiltroRepository;
+import com.sistventas.backend.repository.AtributoFiltroValorRepository;
 import com.sistventas.backend.repository.CategoriaRepository;
 import com.sistventas.backend.repository.SubcategoriaRepository;
 import com.sistventas.backend.security.UserPrincipal;
@@ -18,6 +23,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.Optional;
@@ -25,6 +31,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -43,6 +50,8 @@ class CategoriaServiceImplTest {
 
     @Mock private CategoriaRepository categoriaRepository;
     @Mock private SubcategoriaRepository subcategoriaRepository;
+    @Mock private AtributoFiltroRepository atributoFiltroRepository;
+    @Mock private AtributoFiltroValorRepository atributoFiltroValorRepository;
 
     private CategoriaServiceImpl service;
 
@@ -50,7 +59,12 @@ class CategoriaServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        service = new CategoriaServiceImpl(categoriaRepository, subcategoriaRepository);
+        // ImagenUploadValidator real (sin dependencias propias) en vez de un
+        // mock: así los tests de actualizarImagenSubcategoria ejercitan la
+        // whitelist real (JPG/PNG/WEBP/GIF, 5MB máx) en vez de un stub que
+        // podría desincronizarse de la regla de negocio real.
+        service = new CategoriaServiceImpl(categoriaRepository, subcategoriaRepository,
+                atributoFiltroRepository, atributoFiltroValorRepository, new ImagenUploadValidator());
     }
 
     // --- listar ---
@@ -183,6 +197,99 @@ class CategoriaServiceImplTest {
                 .isInstanceOf(CategoriaNoEncontradaException.class);
 
         verify(subcategoriaRepository, never()).save(any());
+    }
+
+    // --- actualizarImagenSubcategoria / eliminarImagenSubcategoria (admin-only) ---
+
+    @Test
+    void actualizarImagenSubcategoriaConUsuarioNoAdminLanzaAccesoRestringido() {
+        UserPrincipal member = new UserPrincipal(1L, EMPRESA_ID, false, RolEmpresa.MEMBER);
+        MultipartFile file = mock(MultipartFile.class);
+
+        assertThatThrownBy(() -> service.actualizarImagenSubcategoria(CATEGORIA_ID, 100L, file, member))
+                .isInstanceOf(AccesoRestringidoAdminException.class);
+
+        verify(subcategoriaRepository, never()).save(any());
+    }
+
+    @Test
+    void actualizarImagenSubcategoriaConContentTypeInvalidoLanzaExcepcionYNoGuarda() {
+        Categoria categoria = categoriaConId(CATEGORIA_ID, "Accesorios");
+        when(categoriaRepository.findByIdAndEmpresaId(CATEGORIA_ID, EMPRESA_ID)).thenReturn(Optional.of(categoria));
+        Subcategoria bombillas = subcategoriaConId(100L, "Bombillas");
+        when(subcategoriaRepository.findByIdAndCategoriaId(100L, CATEGORIA_ID)).thenReturn(Optional.of(bombillas));
+
+        MultipartFile file = mock(MultipartFile.class);
+        when(file.isEmpty()).thenReturn(false);
+        when(file.getSize()).thenReturn(1024L);
+        when(file.getContentType()).thenReturn("application/pdf");
+
+        assertThatThrownBy(() -> service.actualizarImagenSubcategoria(CATEGORIA_ID, 100L, file, principal))
+                .isInstanceOf(ArchivoInvalidoException.class);
+
+        verify(subcategoriaRepository, never()).save(any());
+    }
+
+    @Test
+    void actualizarImagenSubcategoriaAceptaJpgAdemasDePngWebp() {
+        Categoria categoria = categoriaConId(CATEGORIA_ID, "Accesorios");
+        when(categoriaRepository.findByIdAndEmpresaId(CATEGORIA_ID, EMPRESA_ID)).thenReturn(Optional.of(categoria));
+        Subcategoria bombillas = subcategoriaConId(100L, "Bombillas");
+        when(subcategoriaRepository.findByIdAndCategoriaId(100L, CATEGORIA_ID)).thenReturn(Optional.of(bombillas));
+        when(subcategoriaRepository.save(any(Subcategoria.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        MultipartFile file = mock(MultipartFile.class);
+        when(file.isEmpty()).thenReturn(false);
+        when(file.getSize()).thenReturn(1024L);
+        when(file.getContentType()).thenReturn("image/jpeg");
+
+        SubcategoriaDto resultado = service.actualizarImagenSubcategoria(CATEGORIA_ID, 100L, file, principal);
+
+        assertThat(resultado.imagenUrl()).endsWith(".jpg");
+    }
+
+    @Test
+    void actualizarImagenSubcategoriaValidaGuardaLaUrlGenerada() {
+        Categoria categoria = categoriaConId(CATEGORIA_ID, "Accesorios");
+        when(categoriaRepository.findByIdAndEmpresaId(CATEGORIA_ID, EMPRESA_ID)).thenReturn(Optional.of(categoria));
+        Subcategoria bombillas = subcategoriaConId(100L, "Bombillas");
+        when(subcategoriaRepository.findByIdAndCategoriaId(100L, CATEGORIA_ID)).thenReturn(Optional.of(bombillas));
+        when(subcategoriaRepository.save(any(Subcategoria.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        MultipartFile file = mock(MultipartFile.class);
+        when(file.isEmpty()).thenReturn(false);
+        when(file.getSize()).thenReturn(1024L);
+        when(file.getContentType()).thenReturn("image/webp");
+
+        SubcategoriaDto resultado = service.actualizarImagenSubcategoria(CATEGORIA_ID, 100L, file, principal);
+
+        assertThat(resultado.imagenUrl()).startsWith("/uploads/categorias/subcategoria-" + EMPRESA_ID + "-");
+        assertThat(resultado.imagenUrl()).endsWith(".webp");
+    }
+
+    @Test
+    void actualizarImagenDeSubcategoriaAjenaLanzaSubcategoriaNoEncontrada() {
+        Categoria categoria = categoriaConId(CATEGORIA_ID, "Accesorios");
+        when(categoriaRepository.findByIdAndEmpresaId(CATEGORIA_ID, EMPRESA_ID)).thenReturn(Optional.of(categoria));
+        when(subcategoriaRepository.findByIdAndCategoriaId(999L, CATEGORIA_ID)).thenReturn(Optional.empty());
+        MultipartFile file = mock(MultipartFile.class);
+
+        assertThatThrownBy(() -> service.actualizarImagenSubcategoria(CATEGORIA_ID, 999L, file, principal))
+                .isInstanceOf(SubcategoriaNoEncontradaException.class);
+    }
+
+    @Test
+    void eliminarImagenSubcategoriaLimpiaElCampoYPersiste() {
+        Categoria categoria = categoriaConId(CATEGORIA_ID, "Accesorios");
+        when(categoriaRepository.findByIdAndEmpresaId(CATEGORIA_ID, EMPRESA_ID)).thenReturn(Optional.of(categoria));
+        Subcategoria bombillas = subcategoriaConId(100L, "Bombillas");
+        bombillas.setImagenUrl("/uploads/categorias/subcategoria-1-abc.png");
+        when(subcategoriaRepository.findByIdAndCategoriaId(100L, CATEGORIA_ID)).thenReturn(Optional.of(bombillas));
+        when(subcategoriaRepository.save(any(Subcategoria.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        SubcategoriaDto resultado = service.eliminarImagenSubcategoria(CATEGORIA_ID, 100L, principal);
+
+        assertThat(resultado.imagenUrl()).isNull();
     }
 
     private Categoria categoriaConId(Long id, String nombre) {

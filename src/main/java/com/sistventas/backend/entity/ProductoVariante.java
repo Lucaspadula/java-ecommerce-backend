@@ -35,6 +35,13 @@ public class ProductoVariante {
     @Column(name = "foto_url", length = 255)
     private String fotoUrl;
 
+    // Hex real del color (ej. "#c39a8f"), nullable: variantes cargadas antes
+    // de esta feature no lo tienen todavía — la tienda pública cae a un
+    // swatch gris neutro con la inicial del nombre en ese caso (ver
+    // PublicVarianteDto.colorHex).
+    @Column(name = "color_hex", length = 7)
+    private String colorHex;
+
     // Columna de esquema sin uso: existió como override opcional de precio
     // por color, se sacó de ProductoServiceImpl/PublicTiendaServiceImpl
     // porque un solo margen mostrado en el form para varios precios distintos
@@ -59,6 +66,9 @@ public class ProductoVariante {
 
     public String getFotoUrl() { return fotoUrl; }
     public void setFotoUrl(String fotoUrl) { this.fotoUrl = fotoUrl; }
+
+    public String getColorHex() { return colorHex; }
+    public void setColorHex(String colorHex) { this.colorHex = colorHex; }
 
     public BigDecimal getPrecioVenta() { return precioVenta; }
     public void setPrecioVenta(BigDecimal precioVenta) { this.precioVenta = precioVenta; }

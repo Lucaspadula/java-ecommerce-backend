@@ -51,26 +51,40 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             String token = header.substring(7);
             try {
                 Claims claims = jwtService.parseClaims(token);
-                Long usuarioId = Long.valueOf(claims.getSubject());
-                boolean esSuperAdmin = Boolean.TRUE.equals(claims.get("esSuperAdmin", Boolean.class));
-                String rolEmpresaClaim = claims.get("rolEmpresa", String.class);
                 Number empresaIdClaim = claims.get("empresaId", Number.class);
-
                 Long empresaId = empresaIdClaim != null ? empresaIdClaim.longValue() : null;
-                RolEmpresa rolEmpresa = rolEmpresaClaim != null ? RolEmpresa.valueOf(rolEmpresaClaim) : null;
 
-                List<GrantedAuthority> authorities = new ArrayList<>();
-                if (esSuperAdmin) {
-                    authorities.add(new SimpleGrantedAuthority("ROLE_SUPER_ADMIN"));
-                }
-                if (rolEmpresaClaim != null) {
-                    authorities.add(new SimpleGrantedAuthority("ROLE_" + rolEmpresaClaim));
-                }
+                // Un token de cliente SIEMPRE lleva el claim "tipo"; uno de
+                // Usuario (panel/empresa) nunca lo tiene — ver
+                // JwtService.generateTokenCliente. Ramas separadas a
+                // propósito: un ClientePrincipal jamás lleva autoridades de
+                // empresa (ROLE_SUPER_ADMIN/ROLE_*), así que un token de
+                // cliente no puede autorizar nada del panel aunque el JWT
+                // sea válido.
+                if ("cliente".equals(claims.get("tipo", String.class))) {
+                    Long clienteId = Long.valueOf(claims.getSubject());
+                    ClientePrincipal principal = new ClientePrincipal(clienteId, empresaId);
+                    List<GrantedAuthority> authorities = List.of(new SimpleGrantedAuthority("ROLE_CLIENTE"));
+                    SecurityContextHolder.getContext().setAuthentication(
+                            new UsernamePasswordAuthenticationToken(principal, null, authorities));
+                } else {
+                    Long usuarioId = Long.valueOf(claims.getSubject());
+                    boolean esSuperAdmin = Boolean.TRUE.equals(claims.get("esSuperAdmin", Boolean.class));
+                    String rolEmpresaClaim = claims.get("rolEmpresa", String.class);
+                    RolEmpresa rolEmpresa = rolEmpresaClaim != null ? RolEmpresa.valueOf(rolEmpresaClaim) : null;
 
-                UserPrincipal principal = new UserPrincipal(usuarioId, empresaId, esSuperAdmin, rolEmpresa);
-                UsernamePasswordAuthenticationToken authentication =
-                        new UsernamePasswordAuthenticationToken(principal, null, authorities);
-                SecurityContextHolder.getContext().setAuthentication(authentication);
+                    List<GrantedAuthority> authorities = new ArrayList<>();
+                    if (esSuperAdmin) {
+                        authorities.add(new SimpleGrantedAuthority("ROLE_SUPER_ADMIN"));
+                    }
+                    if (rolEmpresaClaim != null) {
+                        authorities.add(new SimpleGrantedAuthority("ROLE_" + rolEmpresaClaim));
+                    }
+
+                    UserPrincipal principal = new UserPrincipal(usuarioId, empresaId, esSuperAdmin, rolEmpresa);
+                    SecurityContextHolder.getContext().setAuthentication(
+                            new UsernamePasswordAuthenticationToken(principal, null, authorities));
+                }
             } catch (JwtException | IllegalArgumentException ex) {
                 SecurityContextHolder.clearContext();
             }

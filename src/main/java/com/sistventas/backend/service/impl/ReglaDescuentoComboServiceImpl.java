@@ -118,7 +118,7 @@ public class ReglaDescuentoComboServiceImpl implements ReglaDescuentoComboServic
                         categoria.getId(),
                         categoria.getNombre(),
                         subcategoriaRepository.findByCategoriaIdOrderByNombreAsc(categoria.getId()).stream()
-                                .map(sub -> new SubcategoriaDto(sub.getId(), sub.getNombre()))
+                                .map(sub -> new SubcategoriaDto(sub.getId(), sub.getNombre(), sub.getImagenUrl()))
                                 .toList()))
                 .toList();
     }

@@ -136,8 +136,28 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", ex.getMessage()));
     }
 
+    @ExceptionHandler(AtributoFiltroNoEncontradoException.class)
+    public ResponseEntity<Map<String, String>> handleAtributoFiltroNoEncontrado(AtributoFiltroNoEncontradoException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", ex.getMessage()));
+    }
+
+    @ExceptionHandler(AtributoFiltroValorNoEncontradoException.class)
+    public ResponseEntity<Map<String, String>> handleAtributoFiltroValorNoEncontrado(AtributoFiltroValorNoEncontradoException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", ex.getMessage()));
+    }
+
+    @ExceptionHandler(ClienteYaRegistradoException.class)
+    public ResponseEntity<Map<String, String>> handleClienteYaRegistrado(ClienteYaRegistradoException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", ex.getMessage()));
+    }
+
     @ExceptionHandler(ResenaNoEncontradaException.class)
     public ResponseEntity<Map<String, String>> handleResenaNoEncontrada(ResenaNoEncontradaException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", ex.getMessage()));
+    }
+
+    @ExceptionHandler(ProductoFotoNoEncontradaException.class)
+    public ResponseEntity<Map<String, String>> handleProductoFotoNoEncontrada(ProductoFotoNoEncontradaException ex) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", ex.getMessage()));
     }
 
@@ -146,13 +166,13 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", ex.getMessage()));
     }
 
-    @ExceptionHandler(TestimonioNoEncontradoException.class)
-    public ResponseEntity<Map<String, String>> handleTestimonioNoEncontrado(TestimonioNoEncontradoException ex) {
+    @ExceptionHandler(TipNoEncontradoException.class)
+    public ResponseEntity<Map<String, String>> handleTipNoEncontrado(TipNoEncontradoException ex) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", ex.getMessage()));
     }
 
-    @ExceptionHandler(TipNoEncontradoException.class)
-    public ResponseEntity<Map<String, String>> handleTipNoEncontrado(TipNoEncontradoException ex) {
+    @ExceptionHandler(CatalogoSeccionNoEncontradaException.class)
+    public ResponseEntity<Map<String, String>> handleCatalogoSeccionNoEncontrada(CatalogoSeccionNoEncontradaException ex) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", ex.getMessage()));
     }
 

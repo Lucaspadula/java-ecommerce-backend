@@ -22,6 +22,13 @@ public class Subcategoria {
     @Column(nullable = false, length = 100)
     private String nombre;
 
+    // Imagen representativa para el mega-menú de categorías de la tienda
+    // pública (ver PublicTiendaServiceImpl.listarCategoriasMenu). Mismo
+    // criterio de nullable que Categoria/TiendaCategoria.imagenUrl: sin
+    // imagen propia, el mega-menú cae al imagenUrl de la categoría padre.
+    @Column(name = "imagen_url", length = 500)
+    private String imagenUrl;
+
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 
@@ -30,4 +37,7 @@ public class Subcategoria {
 
     public String getNombre() { return nombre; }
     public void setNombre(String nombre) { this.nombre = nombre; }
+
+    public String getImagenUrl() { return imagenUrl; }
+    public void setImagenUrl(String imagenUrl) { this.imagenUrl = imagenUrl; }
 }

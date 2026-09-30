@@ -3,11 +3,14 @@ package com.sistventas.backend.controller;
 import com.sistventas.backend.dto.ActualizarProductoRequest;
 import com.sistventas.backend.dto.AjustePrecioCategoriaRequest;
 import com.sistventas.backend.dto.AjustePrecioCategoriaResultadoDto;
+import com.sistventas.backend.dto.AjustarFotoRequest;
+import com.sistventas.backend.dto.AsignarColorFotoRequest;
 import com.sistventas.backend.dto.CrearResenaRequest;
 import com.sistventas.backend.dto.DescripcionIaResponse;
 import com.sistventas.backend.dto.FotoUploadDto;
 import com.sistventas.backend.dto.ProductoDto;
 import com.sistventas.backend.dto.ProductoRequest;
+import com.sistventas.backend.dto.ReordenarFotosRequest;
 import com.sistventas.backend.dto.ResenaDto;
 import com.sistventas.backend.security.UserPrincipal;
 import com.sistventas.backend.service.CatalogoService;
@@ -91,23 +94,59 @@ public class ProductoController {
         return ResponseEntity.noContent().build();
     }
 
-    // slot default 1: así el frontend viejo que sube solo la foto principal
-    // sin mandar slot sigue funcionando sin cambios.
-    @PostMapping(value = "/{id}/foto", consumes = "multipart/form-data")
-    public ResponseEntity<ProductoDto> actualizarFoto(
+    // Pool unificado de fotos (reemplaza el viejo esquema de slots fijos
+    // 1-4): hasta 8 por producto, cada una con varianteId opcional (color).
+    // varianteId ausente = foto "general".
+    @PostMapping(value = "/{id}/fotos", consumes = "multipart/form-data")
+    public ResponseEntity<ProductoDto> agregarFoto(
             @PathVariable Long id,
             @RequestParam("file") MultipartFile file,
-            @RequestParam(value = "slot", defaultValue = "1") int slot,
+            @RequestParam(value = "varianteId", required = false) Long varianteId,
             @AuthenticationPrincipal UserPrincipal principal) {
-        return ResponseEntity.ok(productoService.actualizarFoto(id, file, slot, principal));
+        return ResponseEntity.ok(productoService.agregarFoto(id, file, varianteId, principal));
     }
 
-    @DeleteMapping("/{id}/foto")
+    @DeleteMapping("/{id}/fotos/{fotoId}")
     public ResponseEntity<ProductoDto> eliminarFoto(
             @PathVariable Long id,
-            @RequestParam(value = "slot", defaultValue = "1") int slot,
+            @PathVariable Long fotoId,
             @AuthenticationPrincipal UserPrincipal principal) {
-        return ResponseEntity.ok(productoService.eliminarFoto(id, slot, principal));
+        return ResponseEntity.ok(productoService.eliminarFoto(id, fotoId, principal));
+    }
+
+    // Cambia el color asociado a una foto sin re-subir el archivo (ver spec
+    // "Cambio de color sin re-subida"). varianteId null en el body = quita el
+    // color (vuelve a "general").
+    @PatchMapping("/{id}/fotos/{fotoId}")
+    public ResponseEntity<ProductoDto> asignarColorFoto(
+            @PathVariable Long id,
+            @PathVariable Long fotoId,
+            @RequestBody AsignarColorFotoRequest request,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(productoService.asignarColorFoto(id, fotoId, request.varianteId(), principal));
+    }
+
+    // Toggle manual del ajuste de una foto (ver spec "Ajuste manual de
+    // foto"): el dueño elige, foto por foto, si se ve completa (contain) o
+    // agrandada llenando el marco (cover) — antes lo decidía el CSS solo.
+    @PatchMapping("/{id}/fotos/{fotoId}/ajuste")
+    public ResponseEntity<ProductoDto> ajustarFoto(
+            @PathVariable Long id,
+            @PathVariable Long fotoId,
+            @RequestBody AjustarFotoRequest request,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(productoService.ajustarFoto(id, fotoId, request.agrandada(), principal));
+    }
+
+    // Endpoint dedicado (no embebido en ActualizarProductoRequest, ver design
+    // Decision #1): body { "fotoIds": [12, 9, 15] } con TODOS los ids del
+    // producto en el orden final deseado.
+    @PutMapping("/{id}/fotos/orden")
+    public ResponseEntity<ProductoDto> reordenarFotos(
+            @PathVariable Long id,
+            @Valid @RequestBody ReordenarFotosRequest request,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(productoService.reordenarFotos(id, request.fotoIds(), principal));
     }
 
     // Genérico, no atado a un producto/variante puntual — ver

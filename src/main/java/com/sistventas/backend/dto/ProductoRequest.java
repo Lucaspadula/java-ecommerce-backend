@@ -67,5 +67,11 @@ public record ProductoRequest(
         Integer stock,
 
         @DecimalMin(value = "0.0", message = "El costo unitario no puede ser negativo")
-        BigDecimal costoUnitario
+        BigDecimal costoUnitario,
+
+        // Ids de AtributoFiltroValor asignados a este producto (ej. Material =
+        // "Acero") — lista vacía o null = sin ningún atributo asignado. Se
+        // valida server-side que cada id pertenezca a un atributo de LA
+        // categoría elegida (ver ProductoServiceImpl).
+        List<Long> atributoValorIds
 ) {}

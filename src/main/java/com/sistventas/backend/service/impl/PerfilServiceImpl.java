@@ -1,5 +1,7 @@
 package com.sistventas.backend.service.impl;
 
+import com.sistventas.backend.dto.ActualizarCatalogoConfigRequest;
+import com.sistventas.backend.dto.ActualizarEstiloTextoCatalogoRequest;
 import com.sistventas.backend.dto.ActualizarGeminiApiKeyRequest;
 import com.sistventas.backend.dto.ActualizarPerfilRequest;
 import com.sistventas.backend.dto.ActualizarTiendaRequest;
@@ -130,6 +132,41 @@ public class PerfilServiceImpl implements PerfilService {
 
     @Override
     @Transactional
+    public PerfilDto actualizarCatalogoPortadaImagen(MultipartFile file, UserPrincipal principal) {
+        Long empresaId = adminEmpresaIdOrThrow(principal);
+        String extension = imagenUploadValidator.validarYObtenerExtension(file);
+        String nombreArchivo = empresaId + "-" + UUID.randomUUID() + extension;
+
+        try {
+            Files.createDirectories(UPLOAD_DIR);
+            Path destino = UPLOAD_DIR.resolve(nombreArchivo);
+            file.transferTo(destino);
+        } catch (IOException ex) {
+            throw new UncheckedIOException("No se pudo guardar la imagen de portada", ex);
+        }
+
+        Empresa empresa = empresaRepository.getReferenceById(empresaId);
+        borrarArchivoBannerSiExiste(empresa.getCatalogoPortadaImagenUrl());
+        empresa.setCatalogoPortadaImagenUrl("/uploads/empresas/" + nombreArchivo);
+        empresaRepository.save(empresa);
+
+        return toDto(buscarUsuario(principal));
+    }
+
+    @Override
+    @Transactional
+    public PerfilDto quitarCatalogoPortadaImagen(UserPrincipal principal) {
+        Long empresaId = adminEmpresaIdOrThrow(principal);
+        Empresa empresa = empresaRepository.getReferenceById(empresaId);
+        borrarArchivoBannerSiExiste(empresa.getCatalogoPortadaImagenUrl());
+        empresa.setCatalogoPortadaImagenUrl(null);
+        empresaRepository.save(empresa);
+
+        return toDto(buscarUsuario(principal));
+    }
+
+    @Override
+    @Transactional
     public PerfilDto actualizarTienda(ActualizarTiendaRequest request, UserPrincipal principal) {
         Long empresaId = adminEmpresaIdOrThrow(principal);
 
@@ -160,8 +197,38 @@ public class PerfilServiceImpl implements PerfilService {
         empresa.setTiendaCuit(vacioComoNull(request.tiendaCuit()));
         empresa.setTiendaDireccion(vacioComoNull(request.tiendaDireccion()));
         empresa.setTiendaSobreNosotros(vacioComoNull(request.tiendaSobreNosotros()));
+        empresa.setTiendaOfertaActiva(request.tiendaOfertaActiva());
+        empresa.setTiendaOfertaEtiqueta(vacioComoNull(request.tiendaOfertaEtiqueta()));
+        empresa.setTiendaOfertaTexto(vacioComoNull(request.tiendaOfertaTexto()));
+        empresa.setTiendaOfertaFechaFin(request.tiendaOfertaFechaFin());
         empresaRepository.save(empresa);
 
+        return toDto(buscarUsuario(principal));
+    }
+
+    @Override
+    @Transactional
+    public PerfilDto actualizarCatalogoConfig(ActualizarCatalogoConfigRequest request, UserPrincipal principal) {
+        Long empresaId = adminEmpresaIdOrThrow(principal);
+        Empresa empresa = empresaRepository.getReferenceById(empresaId);
+        empresa.setCatalogoMostrarLogo(request.mostrarLogo());
+        empresa.setCatalogoTituloPersonalizado(vacioComoNull(request.tituloPersonalizado()));
+        empresa.setCatalogoMostrarDescripcion(request.mostrarDescripcion());
+        empresa.setCatalogoMostrarColores(request.mostrarColores());
+        empresa.setCatalogoColorFondoProductos(vacioComoNull(request.colorFondoProductos()));
+        empresaRepository.save(empresa);
+        return toDto(buscarUsuario(principal));
+    }
+
+    @Override
+    @Transactional
+    public PerfilDto actualizarEstiloTextoCatalogo(ActualizarEstiloTextoCatalogoRequest request, UserPrincipal principal) {
+        Long empresaId = adminEmpresaIdOrThrow(principal);
+        Empresa empresa = empresaRepository.getReferenceById(empresaId);
+        empresa.setCatalogoTextoFuente(vacioComoNull(request.fuente()));
+        empresa.setCatalogoTextoTamanio(request.tamanio());
+        empresa.setCatalogoTextoColor(vacioComoNull(request.color()));
+        empresaRepository.save(empresa);
         return toDto(buscarUsuario(principal));
     }
 
@@ -334,7 +401,20 @@ public class PerfilServiceImpl implements PerfilService {
                 empresa != null ? empresa.getTiendaCuit() : null,
                 empresa != null ? empresa.getTiendaDireccion() : null,
                 empresa != null ? empresa.getTiendaSobreNosotros() : null,
-                empresa != null && empresa.getGeminiApiKey() != null && !empresa.getGeminiApiKey().isBlank()
+                empresa != null && empresa.isTiendaOfertaActiva(),
+                empresa != null ? empresa.getTiendaOfertaEtiqueta() : null,
+                empresa != null ? empresa.getTiendaOfertaTexto() : null,
+                empresa != null ? empresa.getTiendaOfertaFechaFin() : null,
+                empresa != null && empresa.getGeminiApiKey() != null && !empresa.getGeminiApiKey().isBlank(),
+                empresa != null ? empresa.getCatalogoPortadaImagenUrl() : null,
+                empresa == null || empresa.isCatalogoMostrarLogo(),
+                empresa != null ? empresa.getCatalogoTituloPersonalizado() : null,
+                empresa == null || empresa.isCatalogoMostrarDescripcion(),
+                empresa == null || empresa.isCatalogoMostrarColores(),
+                empresa != null ? empresa.getCatalogoColorFondoProductos() : null,
+                empresa != null ? empresa.getCatalogoTextoFuente() : null,
+                empresa != null ? empresa.getCatalogoTextoTamanio() : null,
+                empresa != null ? empresa.getCatalogoTextoColor() : null
         );
     }
 

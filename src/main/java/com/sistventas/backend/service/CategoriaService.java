@@ -1,10 +1,14 @@
 package com.sistventas.backend.service;
 
+import com.sistventas.backend.dto.AtributoFiltroDto;
 import com.sistventas.backend.dto.CategoriaDto;
+import com.sistventas.backend.dto.CrearAtributoFiltroRequest;
+import com.sistventas.backend.dto.CrearAtributoFiltroValorRequest;
 import com.sistventas.backend.dto.CrearCategoriaRequest;
 import com.sistventas.backend.dto.CrearSubcategoriaRequest;
 import com.sistventas.backend.dto.SubcategoriaDto;
 import com.sistventas.backend.security.UserPrincipal;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -24,4 +28,23 @@ public interface CategoriaService {
     List<SubcategoriaDto> listarSubcategorias(Long categoriaId, UserPrincipal principal);
 
     SubcategoriaDto crearSubcategoria(Long categoriaId, CrearSubcategoriaRequest request, UserPrincipal principal);
+
+    // Admin-only (a diferencia del resto de esta interfaz): mismo criterio
+    // que TiendaCategoriaService.actualizarImagen — es personalización
+    // visual de la vidriera pública, no gestión del catálogo de productos.
+    SubcategoriaDto actualizarImagenSubcategoria(Long categoriaId, Long subcategoriaId, MultipartFile file, UserPrincipal principal);
+
+    SubcategoriaDto eliminarImagenSubcategoria(Long categoriaId, Long subcategoriaId, UserPrincipal principal);
+
+    // --- Atributos de filtro (por categoría) ---
+    List<AtributoFiltroDto> listarAtributosFiltro(Long categoriaId, UserPrincipal principal);
+
+    AtributoFiltroDto crearAtributoFiltro(Long categoriaId, CrearAtributoFiltroRequest request, UserPrincipal principal);
+
+    void eliminarAtributoFiltro(Long categoriaId, Long atributoId, UserPrincipal principal);
+
+    AtributoFiltroDto crearValorAtributoFiltro(
+            Long categoriaId, Long atributoId, CrearAtributoFiltroValorRequest request, UserPrincipal principal);
+
+    void eliminarValorAtributoFiltro(Long categoriaId, Long atributoId, Long valorId, UserPrincipal principal);
 }

@@ -24,14 +24,31 @@ public interface ProductoService {
 
     void eliminar(Long id, UserPrincipal principal);
 
-    // slot 1/2/3 determina si se actualiza fotoUrl, fotoUrl2 o fotoUrl3 (ver
-    // Producto). Valida rango 1-3 con ArchivoInvalidoException (400).
-    ProductoDto actualizarFoto(Long id, MultipartFile file, int slot, UserPrincipal principal);
+    // Pool unificado de fotos (V43__producto_foto_pool.sql, reemplaza el
+    // viejo esquema de slots fijos 1-4): hasta 8 por producto, cada una con
+    // varianteId opcional (color). Valida el tope 8 ANTES de escribir el
+    // archivo a disco (ver design Open Question).
+    ProductoDto agregarFoto(Long id, MultipartFile file, Long varianteId, UserPrincipal principal);
 
-    // Borra la foto de un slot puntual sin subir una nueva: pone el campo en
-    // null y borra el archivo del disco best-effort (mismo criterio que el
-    // resto del proyecto, ver PerfilServiceImpl/TiendaCategoriaServiceImpl).
-    ProductoDto eliminarFoto(Long id, int slot, UserPrincipal principal);
+    // Borra una foto puntual del pool por su id: pone el archivo del disco
+    // best-effort (mismo criterio que el resto del proyecto, ver
+    // PerfilServiceImpl/TiendaCategoriaServiceImpl) y reindexa el `orden` de
+    // las restantes a 0..n-1. 404 si la foto no pertenece a este producto.
+    ProductoDto eliminarFoto(Long id, Long fotoId, UserPrincipal principal);
+
+    // Reasigna `orden` 0..n-1 según la posición de cada id en fotoIds. 404 si
+    // la lista contiene una foto que no pertenece a este producto.
+    ProductoDto reordenarFotos(Long id, List<Long> fotoIds, UserPrincipal principal);
+
+    // Cambia el variante_id de una foto sin re-subir el archivo (ver spec
+    // "Cambio de color sin re-subida"). varianteId null = quita el color
+    // (vuelve a "general").
+    ProductoDto asignarColorFoto(Long id, Long fotoId, Long varianteId, UserPrincipal principal);
+
+    // Toggle manual del ajuste de una foto (ver spec "Ajuste manual de
+    // foto"): false = se ve completa (contain), true = se agranda llenando
+    // el marco aunque recorte bordes (cover).
+    ProductoDto ajustarFoto(Long id, Long fotoId, boolean agrandada, UserPrincipal principal);
 
     AjustePrecioCategoriaResultadoDto ajustarPrecioPorCategoria(AjustePrecioCategoriaRequest request, UserPrincipal principal);
 

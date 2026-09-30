@@ -8,6 +8,7 @@ import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 
 public record ActualizarTiendaRequest(
         @NotBlank(message = "El identificador de tienda es obligatorio")
@@ -54,7 +55,7 @@ public record ActualizarTiendaRequest(
 
         // Opcional: si viene null/vacío, se guarda "claro" (ver
         // PerfilServiceImpl.actualizarTienda). Valores válidos: "claro",
-        // "oscuro", "negro-dorado", "marino-dorado", "ciruela-oliva".
+        // "oscuro".
         @Size(max = 20, message = "El tema no puede superar los 20 caracteres")
         String tiendaTema,
 
@@ -79,5 +80,20 @@ public record ActualizarTiendaRequest(
         // Opcional: texto libre largo mostrado en el modal "Sobre nosotros"
         // de la tienda pública.
         @Size(max = 2000, message = "El texto no puede superar los 2000 caracteres")
-        String tiendaSobreNosotros
+        String tiendaSobreNosotros,
+
+        // Barra de urgencia de la vidriera pública. Los 3 campos de contenido
+        // son opcionales incluso con la oferta activa: si vienen vacíos, la
+        // vidriera pública cae a un texto genérico (ver
+        // PublicTiendaServiceImpl), igual que tiendaBannerTitulo.
+        @NotNull(message = "El estado de la oferta es obligatorio")
+        Boolean tiendaOfertaActiva,
+
+        @Size(max = 60, message = "La etiqueta no puede superar los 60 caracteres")
+        String tiendaOfertaEtiqueta,
+
+        @Size(max = 150, message = "El texto de la oferta no puede superar los 150 caracteres")
+        String tiendaOfertaTexto,
+
+        LocalDateTime tiendaOfertaFechaFin
 ) {}

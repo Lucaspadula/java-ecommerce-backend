@@ -18,6 +18,7 @@ import com.sistventas.backend.exception.TokenGoogleInvalidoException;
 import com.sistventas.backend.exception.UsuarioGoogleNoRegistradoException;
 import com.sistventas.backend.repository.EmpresaRepository;
 import com.sistventas.backend.repository.UsuarioRepository;
+import com.sistventas.backend.security.GoogleTokenVerifier;
 import com.sistventas.backend.security.JwtService;
 import io.jsonwebtoken.Claims;
 import org.junit.jupiter.api.BeforeEach;
@@ -83,8 +84,9 @@ class AuthServiceImplTest {
         jwtService = new JwtService(JWT_SECRET_TEST, 3_600_000L);
         RestClient.Builder restClientBuilder = RestClient.builder();
         mockGoogleServer = MockRestServiceServer.bindTo(restClientBuilder).build();
+        GoogleTokenVerifier googleTokenVerifier = new GoogleTokenVerifier(restClientBuilder, GOOGLE_CLIENT_ID);
         authService = new AuthServiceImpl(
-                empresaRepository, usuarioRepository, passwordEncoder, jwtService, restClientBuilder, GOOGLE_CLIENT_ID);
+                empresaRepository, usuarioRepository, passwordEncoder, jwtService, googleTokenVerifier);
     }
 
     private String tokenInfoJson(String aud, String emailVerified, String email, String sub, String nombre) {

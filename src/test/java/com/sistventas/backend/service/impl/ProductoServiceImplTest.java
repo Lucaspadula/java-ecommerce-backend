@@ -18,6 +18,7 @@ import com.sistventas.backend.entity.Categoria;
 import com.sistventas.backend.entity.Insumo;
 import com.sistventas.backend.entity.Producto;
 import com.sistventas.backend.entity.ProductoComponente;
+import com.sistventas.backend.entity.ProductoFoto;
 import com.sistventas.backend.entity.ProductoGrabado;
 import com.sistventas.backend.entity.ProductoVariante;
 import com.sistventas.backend.entity.Resena;
@@ -25,10 +26,13 @@ import com.sistventas.backend.entity.RolEmpresa;
 import com.sistventas.backend.entity.Subcategoria;
 import com.sistventas.backend.exception.ArchivoInvalidoException;
 import com.sistventas.backend.exception.ProductoComponenteInvalidoException;
+import com.sistventas.backend.exception.ProductoFotoNoEncontradaException;
 import com.sistventas.backend.exception.ProductoNoEncontradoException;
 import com.sistventas.backend.exception.ResenaNoEncontradaException;
 import com.sistventas.backend.exception.SinEmpresaException;
 import com.sistventas.backend.exception.SubcategoriaNoEncontradaException;
+import com.sistventas.backend.repository.AtributoFiltroRepository;
+import com.sistventas.backend.repository.AtributoFiltroValorRepository;
 import com.sistventas.backend.repository.CategoriaRepository;
 import com.sistventas.backend.repository.InsumoRepository;
 import com.sistventas.backend.repository.ProductoRepository;
@@ -81,8 +85,16 @@ class ProductoServiceImplTest {
     @Mock private ResenaRepository resenaRepository;
     @Mock private CategoriaRepository categoriaRepository;
     @Mock private SubcategoriaRepository subcategoriaRepository;
+    @Mock private AtributoFiltroRepository atributoFiltroRepository;
+    @Mock private AtributoFiltroValorRepository atributoFiltroValorRepository;
     @Mock private StockDisponibleCalculator stockDisponibleCalculator;
     @Mock private ImagenUploadValidator imagenUploadValidator;
+
+    // Puro/sin dependencias: se usa la implementación REAL, mismo criterio
+    // que StockDisponibleCalculator en PublicTiendaServiceImplTest — acá SÍ
+    // hace falta la regla de negocio de verdad (varios tests nuevos de fotos
+    // dependen de resolverMiniatura/fotosDeVariante reales).
+    private final ProductoFotoResolver productoFotoResolver = new ProductoFotoResolver();
 
     private ProductoServiceImpl service;
 
@@ -91,7 +103,8 @@ class ProductoServiceImplTest {
     @BeforeEach
     void setUp() {
         service = new ProductoServiceImpl(productoRepository, insumoRepository, resenaRepository,
-                categoriaRepository, subcategoriaRepository, stockDisponibleCalculator, imagenUploadValidator);
+                categoriaRepository, subcategoriaRepository, atributoFiltroRepository, atributoFiltroValorRepository,
+                stockDisponibleCalculator, imagenUploadValidator, productoFotoResolver);
 
         Categoria categoria = new Categoria();
         categoria.setId(CATEGORIA_ID);
@@ -207,7 +220,7 @@ class ProductoServiceImplTest {
     // --- costoEfectivo ---
 
     @Test
-    void productoConRecetaUsaSumaDeInsumosComoCostoAunqueTengaCostoUnitarioCargado() {
+    void productoConRecetaSumaCostoUnitarioPropioMasElCostoDeLosInsumos() {
         Insumo insumo = new Insumo();
         insumo.setId(1L);
         insumo.setNombre("Madera");
@@ -218,17 +231,22 @@ class ProductoServiceImplTest {
         ProductoRequest request = new ProductoRequest("Mate", CATEGORIA_ID, null, null,
                 new BigDecimal("100.00"), null, null,
                 List.of(new ProductoInsumoRequest(1L, new BigDecimal("2"))),
-                null, null, null, null, new BigDecimal("999.00"));
+                null, null, null, null, new BigDecimal("999.00"), null);
 
         ProductoDto dto = service.crear(request, principal);
 
-        assertThat(dto.costoUnitario()).isEqualByComparingTo("10.00");
+        assertThat(dto.costoUnitario()).isEqualByComparingTo("1009.00");
+        // costoPropio es el valor crudo persistido (sin sumarle los
+        // insumos) — lo usa el frontend para repoblar "Costo propio" al
+        // editar. Si acá devolviera el mismo total que costoUnitario, el
+        // form al editar duplicaría el costo de los insumos.
+        assertThat(dto.costoPropio()).isEqualByComparingTo("999.00");
     }
 
     @Test
     void productoSinRecetaUsaElCostoUnitarioCargadoAMano() {
         ProductoRequest request = new ProductoRequest("Vela", CATEGORIA_ID, null, null,
-                new BigDecimal("50.00"), null, null, null, null, null, null, null, new BigDecimal("15.50"));
+                new BigDecimal("50.00"), null, null, null, null, null, null, null, new BigDecimal("15.50"), null);
 
         ProductoDto dto = service.crear(request, principal);
 
@@ -238,7 +256,7 @@ class ProductoServiceImplTest {
     @Test
     void productoSinRecetaYSinCostoUnitarioDaCero() {
         ProductoRequest request = new ProductoRequest("Vela", CATEGORIA_ID, null, null,
-                new BigDecimal("50.00"), null, null, null, null, null, null, null, null);
+                new BigDecimal("50.00"), null, null, null, null, null, null, null, null, null);
 
         ProductoDto dto = service.crear(request, principal);
 
@@ -250,7 +268,7 @@ class ProductoServiceImplTest {
     @Test
     void alCrearSinInsumosNiComponentesPersisteStockYCostoDelRequest() {
         ProductoRequest request = new ProductoRequest("Vela", CATEGORIA_ID, null, null,
-                new BigDecimal("50.00"), null, null, null, null, null, null, 25, new BigDecimal("12.34"));
+                new BigDecimal("50.00"), null, null, null, null, null, null, 25, new BigDecimal("12.34"), null);
 
         ArgumentCaptor<Producto> captor = ArgumentCaptor.forClass(Producto.class);
         service.crear(request, principal);
@@ -263,7 +281,7 @@ class ProductoServiceImplTest {
     @Test
     void alCrearSinStockUsaCeroPorDefecto() {
         ProductoRequest request = new ProductoRequest("Vela", CATEGORIA_ID, null, null,
-                new BigDecimal("50.00"), null, null, null, null, null, null, null, null);
+                new BigDecimal("50.00"), null, null, null, null, null, null, null, null, null);
 
         ArgumentCaptor<Producto> captor = ArgumentCaptor.forClass(Producto.class);
         service.crear(request, principal);
@@ -293,7 +311,7 @@ class ProductoServiceImplTest {
                 new BigDecimal("100.00"), null, null, null,
                 List.of(new ProductoVarianteRequest(100L, "Azul", 9, null),
                         new ProductoVarianteRequest(null, "Verde", 4, null)),
-                null, null, null, null);
+                null, null, null, null, null);
 
         service.actualizar(5L, request, principal);
 
@@ -302,6 +320,37 @@ class ProductoServiceImplTest {
                 .containsExactlyInAnyOrder(
                         tuple("Azul", 9),
                         tuple("Verde", 4));
+    }
+
+    @Test
+    void actualizarVarianteExistenteNoBorraSuFotoUrlLegacy() {
+        // Regresión: ProductoVarianteRequest ya no trae fotoUrl (la foto vive
+        // en producto_foto, ver ProductoFotoResolver) — aplicarVariantes NO
+        // debe tocar producto_variante.foto_url en absoluto. Esa columna
+        // queda deprecated como red de seguridad de rollback (ver V43); antes
+        // de este fix, cada guardado la pisaba con null porque el request ya
+        // no mandaba el campo.
+        Producto existente = productoConId(5L);
+        ProductoVariante rojo = new ProductoVariante();
+        rojo.setId(100L);
+        rojo.setProducto(existente);
+        rojo.setColor("Rojo");
+        rojo.setStock(3);
+        rojo.setFotoUrl("/uploads/productos/variante-rojo.jpg");
+        existente.getVariantes().add(rojo);
+
+        when(productoRepository.findByIdAndEmpresaId(5L, EMPRESA_ID)).thenReturn(Optional.of(existente));
+
+        ActualizarProductoRequest request = new ActualizarProductoRequest("Mate", CATEGORIA_ID, null, null,
+                new BigDecimal("100.00"), null, null, null,
+                List.of(new ProductoVarianteRequest(100L, "Rojo", 5, null)),
+                null, null, null, null, null);
+
+        service.actualizar(5L, request, principal);
+
+        assertThat(existente.getVariantes())
+                .extracting(ProductoVariante::getFotoUrl)
+                .containsExactly("/uploads/productos/variante-rojo.jpg");
     }
 
     @Test
@@ -317,7 +366,7 @@ class ProductoServiceImplTest {
         when(productoRepository.findByIdAndEmpresaId(5L, EMPRESA_ID)).thenReturn(Optional.of(existente));
 
         ActualizarProductoRequest request = new ActualizarProductoRequest("Mate", CATEGORIA_ID, null, null,
-                new BigDecimal("100.00"), null, null, null, null, null, null, null, null);
+                new BigDecimal("100.00"), null, null, null, null, null, null, null, null, null);
 
         service.actualizar(5L, request, principal);
 
@@ -422,43 +471,255 @@ class ProductoServiceImplTest {
         verify(resenaRepository, never()).findByProductoIdOrderByFechaDesc(anyLong());
     }
 
-    // --- fotos del producto (actualizarFoto/eliminarFoto) ---
+    // --- fotos del producto: pool unificado (agregarFoto/eliminarFoto/reordenarFotos/asignarColorFoto) ---
 
     @Test
-    void actualizarFotoGuardaLaUrlEnElSlotCorrespondienteYDejaLosOtrosIntactos() {
+    void agregarFotoConMenosDe8LaPersisteConElSiguienteOrdenYSinColor() {
         Producto producto = productoConId(5L);
         producto.setCategoria(categoriaValida());
         when(productoRepository.findByIdAndEmpresaId(5L, EMPRESA_ID)).thenReturn(Optional.of(producto));
         when(imagenUploadValidator.validarYObtenerExtension(any())).thenReturn(".jpg");
-        MultipartFile file = mock(MultipartFile.class);
 
-        ProductoDto resultado = service.actualizarFoto(5L, file, 2, principal);
+        ProductoDto resultado = service.agregarFoto(5L, mock(MultipartFile.class), null, principal);
 
-        assertThat(producto.getFotoUrl()).isNull();
-        assertThat(producto.getFotoUrl2()).startsWith("/uploads/productos/");
-        assertThat(producto.getFotoUrl3()).isNull();
-        assertThat(resultado.fotoUrl2()).isEqualTo(producto.getFotoUrl2());
+        assertThat(producto.getFotos()).hasSize(1);
+        assertThat(producto.getFotos().get(0).getUrl()).startsWith("/uploads/productos/");
+        assertThat(producto.getFotos().get(0).getOrden()).isZero();
+        assertThat(producto.getFotos().get(0).getVarianteId()).isNull();
+        assertThat(resultado.fotos()).hasSize(1);
     }
 
     @Test
-    void actualizarFotoConSlotInvalidoLanzaError() {
-        assertThatThrownBy(() -> service.actualizarFoto(5L, mock(MultipartFile.class), 4, principal))
-                .isInstanceOf(ArchivoInvalidoException.class);
-    }
-
-    @Test
-    void eliminarFotoLimpiaElSlotPedido() {
+    void agregarFotoConVarianteIdValidaLaAsociaAEseColor() {
         Producto producto = productoConId(5L);
         producto.setCategoria(categoriaValida());
-        // URL que no vive en uploads/productos: no dispara un intento real de
-        // borrado de archivo en disco (ver borrarArchivoSiExiste).
-        producto.setFotoUrl2("https://cdn.externo.com/vieja.jpg");
+        ProductoVariante rojo = new ProductoVariante();
+        rojo.setId(20L);
+        rojo.setProducto(producto);
+        rojo.setColor("Rojo");
+        producto.getVariantes().add(rojo);
+        when(productoRepository.findByIdAndEmpresaId(5L, EMPRESA_ID)).thenReturn(Optional.of(producto));
+        when(imagenUploadValidator.validarYObtenerExtension(any())).thenReturn(".jpg");
+
+        service.agregarFoto(5L, mock(MultipartFile.class), 20L, principal);
+
+        assertThat(producto.getFotos().get(0).getVarianteId()).isEqualTo(20L);
+    }
+
+    @Test
+    void agregarFotoConVarianteIdQueNoPerteneceAlProductoLanzaExcepcionYNoEscribeNadaEnElPool() {
+        Producto producto = productoConId(5L);
+        producto.setCategoria(categoriaValida());
         when(productoRepository.findByIdAndEmpresaId(5L, EMPRESA_ID)).thenReturn(Optional.of(producto));
 
-        ProductoDto resultado = service.eliminarFoto(5L, 2, principal);
+        assertThatThrownBy(() -> service.agregarFoto(5L, mock(MultipartFile.class), 999L, principal))
+                .isInstanceOf(ProductoNoEncontradoException.class);
 
-        assertThat(producto.getFotoUrl2()).isNull();
-        assertThat(resultado.fotoUrl2()).isNull();
+        assertThat(producto.getFotos()).isEmpty();
+        verify(imagenUploadValidator, never()).validarYObtenerExtension(any());
+    }
+
+    @Test
+    void agregarFotoConElPoolYaEn8RechazaAntesDeEscribirNadaEnDisco() {
+        Producto producto = productoConId(5L);
+        producto.setCategoria(categoriaValida());
+        for (int i = 0; i < 8; i++) {
+            producto.getFotos().add(fotoDePool(producto, (long) i, null, "/f" + i + ".jpg", i));
+        }
+        when(productoRepository.findByIdAndEmpresaId(5L, EMPRESA_ID)).thenReturn(Optional.of(producto));
+
+        assertThatThrownBy(() -> service.agregarFoto(5L, mock(MultipartFile.class), null, principal))
+                .isInstanceOf(ArchivoInvalidoException.class)
+                .hasMessageContaining("8");
+
+        // El chequeo del tope corta ANTES de validar/escribir el archivo —
+        // ver design Open Question (cap-then-write ordering).
+        verify(imagenUploadValidator, never()).validarYObtenerExtension(any());
+        assertThat(producto.getFotos()).hasSize(8);
+    }
+
+    @Test
+    void eliminarFotoLaBorraYReindexaElOrdenDeLasRestantes() {
+        Producto producto = productoConId(5L);
+        producto.setCategoria(categoriaValida());
+        ProductoFoto f0 = fotoDePool(producto, 1L, null, "/uploads/productos/f0.jpg", 0);
+        ProductoFoto f1 = fotoDePool(producto, 2L, null, "https://cdn.externo.com/f1.jpg", 1);
+        ProductoFoto f2 = fotoDePool(producto, 3L, null, "/uploads/productos/f2.jpg", 2);
+        producto.getFotos().addAll(List.of(f0, f1, f2));
+        when(productoRepository.findByIdAndEmpresaId(5L, EMPRESA_ID)).thenReturn(Optional.of(producto));
+
+        ProductoDto resultado = service.eliminarFoto(5L, 1L, principal);
+
+        assertThat(producto.getFotos()).hasSize(2);
+        assertThat(producto.getFotos()).extracting(ProductoFoto::getId, ProductoFoto::getOrden)
+                .containsExactlyInAnyOrder(tuple(2L, 0), tuple(3L, 1));
+        assertThat(resultado.fotos()).hasSize(2);
+    }
+
+    @Test
+    void eliminarFotoQueNoPerteneceAlProductoLanza404() {
+        Producto producto = productoConId(5L);
+        producto.setCategoria(categoriaValida());
+        when(productoRepository.findByIdAndEmpresaId(5L, EMPRESA_ID)).thenReturn(Optional.of(producto));
+
+        assertThatThrownBy(() -> service.eliminarFoto(5L, 999L, principal))
+                .isInstanceOf(ProductoFotoNoEncontradaException.class);
+    }
+
+    @Test
+    void reordenarFotosReasignaOrdenSegunLaPosicionDeLaListaRecibida() {
+        Producto producto = productoConId(5L);
+        producto.setCategoria(categoriaValida());
+        ProductoFoto f0 = fotoDePool(producto, 1L, null, "/a.jpg", 0);
+        ProductoFoto f1 = fotoDePool(producto, 2L, null, "/b.jpg", 1);
+        ProductoFoto f2 = fotoDePool(producto, 3L, null, "/c.jpg", 2);
+        producto.getFotos().addAll(List.of(f0, f1, f2));
+        when(productoRepository.findByIdAndEmpresaId(5L, EMPRESA_ID)).thenReturn(Optional.of(producto));
+
+        service.reordenarFotos(5L, List.of(3L, 1L, 2L), principal);
+
+        assertThat(f2.getOrden()).isZero();
+        assertThat(f0.getOrden()).isEqualTo(1);
+        assertThat(f1.getOrden()).isEqualTo(2);
+    }
+
+    @Test
+    void reordenarFotosConIdDeOtroProductoRechazaTodaLaOperacion() {
+        Producto producto = productoConId(5L);
+        producto.setCategoria(categoriaValida());
+        ProductoFoto f0 = fotoDePool(producto, 1L, null, "/a.jpg", 0);
+        producto.getFotos().add(f0);
+        when(productoRepository.findByIdAndEmpresaId(5L, EMPRESA_ID)).thenReturn(Optional.of(producto));
+
+        assertThatThrownBy(() -> service.reordenarFotos(5L, List.of(1L, 999L), principal))
+                .isInstanceOf(ProductoFotoNoEncontradaException.class);
+
+        // La foto propia no debe quedar reordenada a mitad de camino.
+        assertThat(f0.getOrden()).isZero();
+    }
+
+    @Test
+    void asignarColorFotoReasignaElVarianteIdSinTocarLaUrl() {
+        Producto producto = productoConId(5L);
+        producto.setCategoria(categoriaValida());
+        ProductoVariante azul = new ProductoVariante();
+        azul.setId(21L);
+        azul.setProducto(producto);
+        azul.setColor("Azul");
+        producto.getVariantes().add(azul);
+        ProductoFoto foto = fotoDePool(producto, 1L, 20L, "/rojo-a-azul.jpg", 0);
+        producto.getFotos().add(foto);
+        when(productoRepository.findByIdAndEmpresaId(5L, EMPRESA_ID)).thenReturn(Optional.of(producto));
+
+        service.asignarColorFoto(5L, 1L, 21L, principal);
+
+        assertThat(foto.getVarianteId()).isEqualTo(21L);
+        assertThat(foto.getUrl()).isEqualTo("/rojo-a-azul.jpg");
+    }
+
+    @Test
+    void asignarColorFotoConVarianteIdNullQuitaElColor() {
+        Producto producto = productoConId(5L);
+        producto.setCategoria(categoriaValida());
+        ProductoFoto foto = fotoDePool(producto, 1L, 20L, "/con-color.jpg", 0);
+        producto.getFotos().add(foto);
+        when(productoRepository.findByIdAndEmpresaId(5L, EMPRESA_ID)).thenReturn(Optional.of(producto));
+
+        service.asignarColorFoto(5L, 1L, null, principal);
+
+        assertThat(foto.getVarianteId()).isNull();
+    }
+
+    @Test
+    void asignarColorFotoDeUnaFotoQueNoExisteLanza404() {
+        Producto producto = productoConId(5L);
+        producto.setCategoria(categoriaValida());
+        when(productoRepository.findByIdAndEmpresaId(5L, EMPRESA_ID)).thenReturn(Optional.of(producto));
+
+        assertThatThrownBy(() -> service.asignarColorFoto(5L, 999L, null, principal))
+                .isInstanceOf(ProductoFotoNoEncontradaException.class);
+    }
+
+    // --- ajustarFoto: toggle manual de contain/cover por foto ---
+
+    @Test
+    void ajustarFotoConAgrandadaTrueLoPersisteYLoExponeEnElDto() {
+        Producto producto = productoConId(5L);
+        producto.setCategoria(categoriaValida());
+        ProductoFoto foto = fotoDePool(producto, 1L, null, "/a.jpg", 0);
+        producto.getFotos().add(foto);
+        when(productoRepository.findByIdAndEmpresaId(5L, EMPRESA_ID)).thenReturn(Optional.of(producto));
+
+        ProductoDto resultado = service.ajustarFoto(5L, 1L, true, principal);
+
+        assertThat(foto.isAgrandada()).isTrue();
+        assertThat(resultado.fotos().get(0).agrandada()).isTrue();
+    }
+
+    @Test
+    void ajustarFotoConAgrandadaFalseLaVuelveAContain() {
+        Producto producto = productoConId(5L);
+        producto.setCategoria(categoriaValida());
+        ProductoFoto foto = fotoDePool(producto, 1L, null, "/a.jpg", 0);
+        foto.setAgrandada(true);
+        producto.getFotos().add(foto);
+        when(productoRepository.findByIdAndEmpresaId(5L, EMPRESA_ID)).thenReturn(Optional.of(producto));
+
+        service.ajustarFoto(5L, 1L, false, principal);
+
+        assertThat(foto.isAgrandada()).isFalse();
+    }
+
+    @Test
+    void ajustarFotoDeUnaFotoQueNoExisteLanza404() {
+        Producto producto = productoConId(5L);
+        producto.setCategoria(categoriaValida());
+        when(productoRepository.findByIdAndEmpresaId(5L, EMPRESA_ID)).thenReturn(Optional.of(producto));
+
+        assertThatThrownBy(() -> service.ajustarFoto(5L, 999L, true, principal))
+                .isInstanceOf(ProductoFotoNoEncontradaException.class);
+    }
+
+    // --- toDto: miniatura derivada del pool (ProductoFotoResolver) ---
+
+    @Test
+    void obtenerConFotosMixtasResuelveFotoUrlComoLaPrimeraSinColor() {
+        Producto producto = productoConId(5L);
+        producto.setCategoria(categoriaValida());
+        producto.getFotos().add(fotoDePool(producto, 1L, 20L, "/con-color.jpg", 0));
+        producto.getFotos().add(fotoDePool(producto, 2L, null, "/general.jpg", 1));
+        when(productoRepository.findByIdAndEmpresaId(5L, EMPRESA_ID)).thenReturn(Optional.of(producto));
+
+        ProductoDto resultado = service.obtener(5L, principal);
+
+        assertThat(resultado.fotoUrl()).isEqualTo("/general.jpg");
+    }
+
+    @Test
+    void obtenerConVarianteExponeSuFotoPropiaDelPoolComoFotoUrlDeLaVariante() {
+        Producto producto = productoConId(5L);
+        producto.setCategoria(categoriaValida());
+        ProductoVariante rojo = new ProductoVariante();
+        rojo.setId(20L);
+        rojo.setProducto(producto);
+        rojo.setColor("Rojo");
+        producto.getVariantes().add(rojo);
+        producto.getFotos().add(fotoDePool(producto, 1L, 20L, "/rojo.jpg", 0));
+        when(productoRepository.findByIdAndEmpresaId(5L, EMPRESA_ID)).thenReturn(Optional.of(producto));
+
+        ProductoDto resultado = service.obtener(5L, principal);
+
+        assertThat(resultado.variantes().get(0).fotoUrl()).isEqualTo("/rojo.jpg");
+    }
+
+    private ProductoFoto fotoDePool(Producto producto, Long id, Long varianteId, String url, int orden) {
+        ProductoFoto foto = new ProductoFoto();
+        foto.setId(id);
+        foto.setProducto(producto);
+        foto.setVarianteId(varianteId);
+        foto.setUrl(url);
+        foto.setOrden(orden);
+        return foto;
     }
 
     // --- listar()/obtener() ---
@@ -520,35 +781,8 @@ class ProductoServiceImplTest {
         verify(productoRepository).save(producto);
     }
 
-    // --- actualizarFoto/eliminarFoto: slots 1 y 3, y el fallo de IO ---
-
     @Test
-    void actualizarFotoEnSlot1GuardaEnFotoUrl() {
-        Producto producto = productoConId(5L);
-        producto.setCategoria(categoriaValida());
-        when(productoRepository.findByIdAndEmpresaId(5L, EMPRESA_ID)).thenReturn(Optional.of(producto));
-        when(imagenUploadValidator.validarYObtenerExtension(any())).thenReturn(".jpg");
-
-        ProductoDto resultado = service.actualizarFoto(5L, mock(MultipartFile.class), 1, principal);
-
-        assertThat(producto.getFotoUrl()).startsWith("/uploads/productos/");
-        assertThat(resultado.fotoUrl()).isEqualTo(producto.getFotoUrl());
-    }
-
-    @Test
-    void actualizarFotoEnSlot3GuardaEnFotoUrl3() {
-        Producto producto = productoConId(5L);
-        producto.setCategoria(categoriaValida());
-        when(productoRepository.findByIdAndEmpresaId(5L, EMPRESA_ID)).thenReturn(Optional.of(producto));
-        when(imagenUploadValidator.validarYObtenerExtension(any())).thenReturn(".jpg");
-
-        service.actualizarFoto(5L, mock(MultipartFile.class), 3, principal);
-
-        assertThat(producto.getFotoUrl3()).startsWith("/uploads/productos/");
-    }
-
-    @Test
-    void actualizarFotoConFalloDeIOLanzaUncheckedIOException() throws IOException {
+    void agregarFotoConFalloDeIOLanzaUncheckedIOException() throws IOException {
         Producto producto = productoConId(5L);
         producto.setCategoria(categoriaValida());
         when(productoRepository.findByIdAndEmpresaId(5L, EMPRESA_ID)).thenReturn(Optional.of(producto));
@@ -556,45 +790,8 @@ class ProductoServiceImplTest {
         MultipartFile file = mock(MultipartFile.class);
         doThrow(new IOException("disco lleno")).when(file).transferTo(any(Path.class));
 
-        assertThatThrownBy(() -> service.actualizarFoto(5L, file, 1, principal))
+        assertThatThrownBy(() -> service.agregarFoto(5L, file, null, principal))
                 .isInstanceOf(UncheckedIOException.class);
-    }
-
-    @Test
-    void eliminarFotoEnSlot1LimpiaFotoUrl() {
-        Producto producto = productoConId(5L);
-        producto.setCategoria(categoriaValida());
-        producto.setFotoUrl("https://cdn.externo.com/vieja.jpg");
-        when(productoRepository.findByIdAndEmpresaId(5L, EMPRESA_ID)).thenReturn(Optional.of(producto));
-
-        ProductoDto resultado = service.eliminarFoto(5L, 1, principal);
-
-        assertThat(producto.getFotoUrl()).isNull();
-        assertThat(resultado.fotoUrl()).isNull();
-    }
-
-    @Test
-    void eliminarFotoEnSlot3LimpiaFotoUrl3() {
-        Producto producto = productoConId(5L);
-        producto.setCategoria(categoriaValida());
-        producto.setFotoUrl3("https://cdn.externo.com/vieja.jpg");
-        when(productoRepository.findByIdAndEmpresaId(5L, EMPRESA_ID)).thenReturn(Optional.of(producto));
-
-        service.eliminarFoto(5L, 3, principal);
-
-        assertThat(producto.getFotoUrl3()).isNull();
-    }
-
-    @Test
-    void eliminarFotoSinFotoCargadaNoIntentaBorrarNadaDelDisco() {
-        // fotoUrl null -> borrarArchivoSiExiste corta antes de tocar el disco.
-        Producto producto = productoConId(5L);
-        producto.setCategoria(categoriaValida());
-        when(productoRepository.findByIdAndEmpresaId(5L, EMPRESA_ID)).thenReturn(Optional.of(producto));
-
-        ProductoDto resultado = service.eliminarFoto(5L, 1, principal);
-
-        assertThat(resultado.fotoUrl()).isNull();
     }
 
     @Test
@@ -604,12 +801,13 @@ class ProductoServiceImplTest {
         // en disco y no debe explotar).
         Producto producto = productoConId(5L);
         producto.setCategoria(categoriaValida());
-        producto.setFotoUrl("/uploads/productos/no-existe-" + UUID.randomUUID() + ".jpg");
+        ProductoFoto foto = fotoDePool(producto, 1L, null, "/uploads/productos/no-existe-" + UUID.randomUUID() + ".jpg", 0);
+        producto.getFotos().add(foto);
         when(productoRepository.findByIdAndEmpresaId(5L, EMPRESA_ID)).thenReturn(Optional.of(producto));
 
-        ProductoDto resultado = service.eliminarFoto(5L, 1, principal);
+        ProductoDto resultado = service.eliminarFoto(5L, 1L, principal);
 
-        assertThat(producto.getFotoUrl()).isNull();
+        assertThat(producto.getFotos()).isEmpty();
         assertThat(resultado.fotoUrl()).isNull();
     }
 
@@ -685,7 +883,7 @@ class ProductoServiceImplTest {
         when(subcategoriaRepository.findByIdAndCategoriaId(50L, CATEGORIA_ID)).thenReturn(Optional.of(subcategoria));
 
         ProductoRequest request = new ProductoRequest("Mate", CATEGORIA_ID, 50L, null,
-                new BigDecimal("100.00"), null, null, null, null, null, null, null, null);
+                new BigDecimal("100.00"), null, null, null, null, null, null, null, null, null);
 
         ProductoDto dto = service.crear(request, principal);
 
@@ -697,7 +895,7 @@ class ProductoServiceImplTest {
         when(subcategoriaRepository.findByIdAndCategoriaId(50L, CATEGORIA_ID)).thenReturn(Optional.empty());
 
         ProductoRequest request = new ProductoRequest("Mate", CATEGORIA_ID, 50L, null,
-                new BigDecimal("100.00"), null, null, null, null, null, null, null, null);
+                new BigDecimal("100.00"), null, null, null, null, null, null, null, null, null);
 
         assertThatThrownBy(() -> service.crear(request, principal))
                 .isInstanceOf(SubcategoriaNoEncontradaException.class);
@@ -710,7 +908,7 @@ class ProductoServiceImplTest {
         ProductoRequest request = new ProductoRequest("Mate", CATEGORIA_ID, null, null,
                 new BigDecimal("100.00"), null, null, null, null, null,
                 List.of(new ProductoGrabadoRequest("Base", new BigDecimal("500.00"))),
-                null, null);
+                null, null, null);
 
         ProductoDto dto = service.crear(request, principal);
 
@@ -722,7 +920,7 @@ class ProductoServiceImplTest {
     @Test
     void crearConGrabadosNullDejaProductoSinGrabados() {
         ProductoRequest request = new ProductoRequest("Mate", CATEGORIA_ID, null, null,
-                new BigDecimal("100.00"), null, null, null, null, null, null, null, null);
+                new BigDecimal("100.00"), null, null, null, null, null, null, null, null, null);
 
         ProductoDto dto = service.crear(request, principal);
 
@@ -742,7 +940,7 @@ class ProductoServiceImplTest {
         ActualizarProductoRequest request = new ActualizarProductoRequest("Mate", CATEGORIA_ID, null, null,
                 new BigDecimal("100.00"), null, null, null, null, null,
                 List.of(new ProductoGrabadoRequest("Base", new BigDecimal("500.00"))),
-                null, null);
+                null, null, null);
 
         ProductoDto dto = service.actualizar(5L, request, principal);
 
@@ -759,7 +957,7 @@ class ProductoServiceImplTest {
         when(productoRepository.findByIdAndEmpresaId(5L, EMPRESA_ID)).thenReturn(Optional.of(existente));
 
         ActualizarProductoRequest request = new ActualizarProductoRequest("Mate", CATEGORIA_ID, null, null,
-                new BigDecimal("100.00"), null, null, null, null, null, null, null, null);
+                new BigDecimal("100.00"), null, null, null, null, null, null, null, null, null);
 
         ProductoDto dto = service.actualizar(5L, request, principal);
 
@@ -784,12 +982,12 @@ class ProductoServiceImplTest {
 
     private ProductoRequest requestConComponentes(List<ProductoComponenteRequest> componentes) {
         return new ProductoRequest("Kit", CATEGORIA_ID, null, null, new BigDecimal("100.00"), null, null,
-                null, null, componentes, null, null, null);
+                null, null, componentes, null, null, null, null);
     }
 
     private ActualizarProductoRequest requestActualizarConComponentes(List<ProductoComponenteRequest> componentes) {
         return new ActualizarProductoRequest("Kit", CATEGORIA_ID, null, null, new BigDecimal("100.00"), null, null,
-                null, null, componentes, null, null, null);
+                null, null, componentes, null, null, null, null);
     }
 
     private ProductoGrabado grabado(Producto producto, Long id, String lugar, BigDecimal precio) {

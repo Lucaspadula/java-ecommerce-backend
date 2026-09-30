@@ -62,6 +62,7 @@ class JwtAuthenticationFilterTest {
         when(request.getHeader("Authorization")).thenReturn("Bearer token-valido");
         Claims claims = mock(Claims.class);
         when(claims.getSubject()).thenReturn("5");
+        when(claims.get("tipo", String.class)).thenReturn(null);
         when(claims.get("esSuperAdmin", Boolean.class)).thenReturn(false);
         when(claims.get("rolEmpresa", String.class)).thenReturn("ADMIN");
         when(claims.get("empresaId", Number.class)).thenReturn(10L);
@@ -87,6 +88,7 @@ class JwtAuthenticationFilterTest {
         when(request.getHeader("Authorization")).thenReturn("Bearer token-super-admin");
         Claims claims = mock(Claims.class);
         when(claims.getSubject()).thenReturn("1");
+        when(claims.get("tipo", String.class)).thenReturn(null);
         when(claims.get("esSuperAdmin", Boolean.class)).thenReturn(true);
         when(claims.get("rolEmpresa", String.class)).thenReturn(null);
         when(claims.get("empresaId", Number.class)).thenReturn(null);
@@ -137,11 +139,40 @@ class JwtAuthenticationFilterTest {
         verify(filterChain).doFilter(request, response);
     }
 
+    // Un token de cliente (claim "tipo"="cliente") arma un ClientePrincipal
+    // sin NINGUNA autoridad de empresa (ROLE_SUPER_ADMIN/ROLE_*), aunque el
+    // claim empresaId venga seteado — a diferencia de un token de Usuario,
+    // acá empresaId es solo un dato para scoping, nunca gatilla un rol de
+    // empresa. Ver comentario de ClientePrincipal.
+    @Test
+    void tokenDeClienteArmaClientePrincipalConRoleClienteYSinAutoridadesDeEmpresa() throws Exception {
+        when(request.getHeader("Authorization")).thenReturn("Bearer token-cliente");
+        Claims claims = mock(Claims.class);
+        when(claims.getSubject()).thenReturn("7");
+        when(claims.get("tipo", String.class)).thenReturn("cliente");
+        when(claims.get("empresaId", Number.class)).thenReturn(3L);
+        when(jwtService.parseClaims("token-cliente")).thenReturn(claims);
+
+        filter.doFilterInternal(request, response, filterChain);
+
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        assertThat(authentication).isInstanceOf(UsernamePasswordAuthenticationToken.class);
+        ClientePrincipal principal = (ClientePrincipal) authentication.getPrincipal();
+        assertThat(principal.clienteId()).isEqualTo(7L);
+        assertThat(principal.empresaId()).isEqualTo(3L);
+        assertThat(authentication.getAuthorities())
+                .extracting(GrantedAuthority::getAuthority)
+                .containsExactly("ROLE_CLIENTE");
+        verify(filterChain).doFilter(request, response);
+    }
+
     @Test
     void tokenConClaimRolEmpresaInvalidoLimpiaContextoYSigueLaCadena() throws Exception {
         when(request.getHeader("Authorization")).thenReturn("Bearer token-rol-invalido");
         Claims claims = mock(Claims.class);
         when(claims.getSubject()).thenReturn("5");
+        when(claims.get("tipo", String.class)).thenReturn(null);
+        when(claims.get("empresaId", Number.class)).thenReturn(null);
         when(claims.get("esSuperAdmin", Boolean.class)).thenReturn(false);
         when(claims.get("rolEmpresa", String.class)).thenReturn("ROL_QUE_NO_EXISTE");
         when(jwtService.parseClaims("token-rol-invalido")).thenReturn(claims);

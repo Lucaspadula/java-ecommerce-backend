@@ -6,7 +6,6 @@ import com.sistventas.backend.entity.Categoria;
 import com.sistventas.backend.entity.RolEmpresa;
 import com.sistventas.backend.entity.TiendaCategoria;
 import com.sistventas.backend.exception.AccesoRestringidoAdminException;
-import com.sistventas.backend.exception.ArchivoInvalidoException;
 import com.sistventas.backend.exception.CategoriaNoEncontradaException;
 import com.sistventas.backend.exception.SinEmpresaException;
 import com.sistventas.backend.repository.CategoriaRepository;
@@ -43,26 +42,16 @@ public class TiendaCategoriaServiceImpl implements TiendaCategoriaService {
 
     private static final Path UPLOAD_DIR = Paths.get("uploads", "categorias");
 
-    // Whitelist exacta por Content-Type: a diferencia del resto de los
-    // uploads del proyecto (que solo chequean el prefijo "image/" y derivan
-    // la extensión del nombre de archivo original sin sanitizar), acá se
-    // valida contra un set cerrado y la extensión en disco sale del
-    // Content-Type ya validado, nunca del nombre que manda el cliente. Solo
-    // PNG/WEBP: son los únicos formatos de la whitelist con canal alfa
-    // (transparencia), necesaria para que la imagen se recorte bien sobre el
-    // fondo de color de la categoría.
-    private static final Map<String, String> CONTENT_TYPE_A_EXTENSION = Map.of(
-            "image/png", ".png",
-            "image/webp", ".webp"
-    );
-
     private final TiendaCategoriaRepository tiendaCategoriaRepository;
     private final CategoriaRepository categoriaRepository;
+    private final ImagenUploadValidator imagenUploadValidator;
 
     public TiendaCategoriaServiceImpl(TiendaCategoriaRepository tiendaCategoriaRepository,
-                                       CategoriaRepository categoriaRepository) {
+                                       CategoriaRepository categoriaRepository,
+                                       ImagenUploadValidator imagenUploadValidator) {
         this.tiendaCategoriaRepository = tiendaCategoriaRepository;
         this.categoriaRepository = categoriaRepository;
+        this.imagenUploadValidator = imagenUploadValidator;
     }
 
     @Override
@@ -99,7 +88,7 @@ public class TiendaCategoriaServiceImpl implements TiendaCategoriaService {
     public CategoriaTiendaDto actualizarImagen(Long categoriaId, MultipartFile file, UserPrincipal principal) {
         Long empresaId = adminEmpresaIdOrThrow(principal);
         Categoria categoria = buscarCategoriaPorEmpresa(categoriaId, empresaId);
-        String extension = validarImagenYObtenerExtension(file);
+        String extension = imagenUploadValidator.validarYObtenerExtension(file);
         TiendaCategoria tiendaCategoria = buscarOCrear(empresaId, categoria.getId());
 
         String nombreArchivo = "categoria-" + empresaId + "-" + UUID.randomUUID() + extension;
@@ -168,17 +157,6 @@ public class TiendaCategoriaServiceImpl implements TiendaCategoriaService {
         } catch (IOException ignored) {
             // Best-effort: no bloquea la actualización de la metadata.
         }
-    }
-
-    private String validarImagenYObtenerExtension(MultipartFile file) {
-        if (file == null || file.isEmpty()) {
-            throw new ArchivoInvalidoException("El archivo es obligatorio");
-        }
-        String extension = CONTENT_TYPE_A_EXTENSION.get(file.getContentType());
-        if (extension == null) {
-            throw new ArchivoInvalidoException("La imagen debe ser PNG o WEBP (con transparencia)");
-        }
-        return extension;
     }
 
     // Único punto donde se resuelve empresaId del usuario logueado, exigiendo

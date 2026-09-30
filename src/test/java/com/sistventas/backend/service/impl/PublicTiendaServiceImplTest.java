@@ -1,42 +1,54 @@
 package com.sistventas.backend.service.impl;
 
+import com.sistventas.backend.dto.AtributoFiltroDto;
 import com.sistventas.backend.dto.CategoriaTiendaDto;
+import com.sistventas.backend.dto.ClienteLoginResponse;
 import com.sistventas.backend.dto.FotoUploadDto;
 import com.sistventas.backend.dto.PreviewDescuentoComboDto;
 import com.sistventas.backend.dto.PreviewDescuentoComboRequest;
 import com.sistventas.backend.dto.PublicComponenteDto;
+import com.sistventas.backend.dto.PublicCategoriaMenuDto;
 import com.sistventas.backend.dto.PublicEmpresaDto;
 import com.sistventas.backend.dto.PublicPedidoEstadoDto;
 import com.sistventas.backend.dto.PublicPedidoItemRequest;
 import com.sistventas.backend.dto.PublicPedidoRequest;
 import com.sistventas.backend.dto.PublicPedidoResultadoDto;
 import com.sistventas.backend.dto.PublicProductoDto;
-import com.sistventas.backend.dto.PublicTestimonioDto;
 import com.sistventas.backend.dto.PublicTipDto;
+import com.sistventas.backend.dto.RegistrarClienteRequest;
+import com.sistventas.backend.entity.AtributoFiltro;
+import com.sistventas.backend.entity.AtributoFiltroValor;
 import com.sistventas.backend.entity.Categoria;
-import com.sistventas.backend.entity.CanalTestimonio;
 import com.sistventas.backend.entity.Cliente;
 import com.sistventas.backend.entity.Empresa;
 import com.sistventas.backend.entity.EstadoVenta;
 import com.sistventas.backend.entity.Producto;
 import com.sistventas.backend.entity.ProductoComponente;
+import com.sistventas.backend.entity.ProductoFoto;
 import com.sistventas.backend.entity.ProductoGrabado;
 import com.sistventas.backend.entity.ProductoVariante;
 import com.sistventas.backend.entity.ReglaDescuentoCombo;
 import com.sistventas.backend.entity.Resena;
 import com.sistventas.backend.entity.Subcategoria;
 import com.sistventas.backend.entity.TiendaCategoria;
-import com.sistventas.backend.entity.TiendaTestimonio;
 import com.sistventas.backend.entity.TiendaTip;
 import com.sistventas.backend.entity.Venta;
 import com.sistventas.backend.dto.ResenaDto;
 import com.sistventas.backend.exception.AccionNoPermitidaException;
+import com.sistventas.backend.exception.CategoriaNoEncontradaException;
+import com.sistventas.backend.exception.ClienteYaRegistradoException;
 import com.sistventas.backend.exception.CuponInvalidoException;
 import com.sistventas.backend.exception.ProductoNoEncontradoException;
 import com.sistventas.backend.exception.StockInsuficienteException;
 import com.sistventas.backend.exception.TiendaNoEncontradaException;
 import com.sistventas.backend.exception.VentaNoEncontradaException;
+import com.sistventas.backend.repository.AtributoFiltroRepository;
+import com.sistventas.backend.repository.AtributoFiltroValorRepository;
 import com.sistventas.backend.repository.CategoriaRepository;
+import com.sistventas.backend.repository.SubcategoriaRepository;
+import com.sistventas.backend.security.GoogleTokenVerifier;
+import com.sistventas.backend.security.JwtService;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import com.sistventas.backend.repository.ClienteRepository;
 import com.sistventas.backend.repository.EmpresaRepository;
 import com.sistventas.backend.repository.ProductoRepository;
@@ -44,7 +56,6 @@ import com.sistventas.backend.repository.ReglaDescuentoComboRepository;
 import com.sistventas.backend.repository.ResenaRepository;
 import com.sistventas.backend.repository.TiendaBannerImagenRepository;
 import com.sistventas.backend.repository.TiendaCategoriaRepository;
-import com.sistventas.backend.repository.TiendaTestimonioRepository;
 import com.sistventas.backend.repository.TiendaTipRepository;
 import com.sistventas.backend.repository.VentaEstadoHistorialRepository;
 import com.sistventas.backend.repository.VentaRepository;
@@ -66,6 +77,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -104,13 +116,19 @@ class PublicTiendaServiceImplTest {
     private CategoriaRepository categoriaRepository;
 
     @Mock
+    private SubcategoriaRepository subcategoriaRepository;
+
+    @Mock
+    private AtributoFiltroRepository atributoFiltroRepository;
+
+    @Mock
+    private AtributoFiltroValorRepository atributoFiltroValorRepository;
+
+    @Mock
     private TiendaBannerImagenRepository tiendaBannerImagenRepository;
 
     @Mock
     private ResenaRepository resenaRepository;
-
-    @Mock
-    private TiendaTestimonioRepository tiendaTestimonioRepository;
 
     @Mock
     private TiendaTipRepository tiendaTipRepository;
@@ -127,6 +145,23 @@ class PublicTiendaServiceImplTest {
     @Mock
     private ImagenUploadValidator imagenUploadValidator;
 
+    // Se usa la implementación REAL (no un mock puro sin stub) en los tests
+    // nuevos de fotos vía @InjectMocks + esta declaración: al ser un
+    // @Component sin dependencias, Mockito lo inyecta igual, pero acá se
+    // sobreescribe con la instancia real cuando el test necesita la regla de
+    // negocio de verdad (ver setUp de los tests de fotos más abajo).
+    @Mock
+    private ProductoFotoResolver productoFotoResolver;
+
+    @Mock
+    private JwtService jwtService;
+
+    @Mock
+    private PasswordEncoder passwordEncoder;
+
+    @Mock
+    private GoogleTokenVerifier googleTokenVerifier;
+
     @InjectMocks
     private PublicTiendaServiceImpl publicTiendaService;
 
@@ -134,7 +169,7 @@ class PublicTiendaServiceImplTest {
     void obtenerEmpresaExponeTiendaFuenteYTiendaTemaDeLaEmpresa() {
         Empresa empresa = empresa();
         empresa.setTiendaFuente("moderna");
-        empresa.setTiendaTema("marino-dorado");
+        empresa.setTiendaTema("oscuro");
         when(empresaRepository.findBySlugAndTiendaHabilitadaTrue(SLUG)).thenReturn(Optional.of(empresa));
         when(tiendaBannerImagenRepository.findByEmpresaIdAndTipoOrderByOrden(EMPRESA_ID, "HERO")).thenReturn(List.of());
         when(tiendaBannerImagenRepository.findByEmpresaIdAndTipoOrderByOrden(EMPRESA_ID, "VERTICAL")).thenReturn(List.of());
@@ -142,7 +177,7 @@ class PublicTiendaServiceImplTest {
         PublicEmpresaDto resultado = publicTiendaService.obtenerEmpresa(SLUG);
 
         assertThat(resultado.tiendaFuente()).isEqualTo("moderna");
-        assertThat(resultado.tiendaTema()).isEqualTo("marino-dorado");
+        assertThat(resultado.tiendaTema()).isEqualTo("oscuro");
     }
 
     @Test
@@ -410,28 +445,7 @@ class PublicTiendaServiceImplTest {
         assertThat(resultado.total()).isEqualByComparingTo(new BigDecimal("500.00"));
     }
 
-    // --- listarTestimonios / listarTips / listarResenas: scoping por empresa ---
-
-    @Test
-    void listarTestimoniosTraeSoloLosMapeadosAlDtoPublicoSinExponerIdNiOrden() {
-        Empresa empresa = empresa();
-        TiendaTestimonio testimonio = new TiendaTestimonio();
-        testimonio.setEmpresaId(EMPRESA_ID);
-        testimonio.setClienteNombre("Juan");
-        testimonio.setComentario("Excelente atención");
-        testimonio.setCanal(CanalTestimonio.WHATSAPP);
-
-        when(empresaRepository.findBySlugAndTiendaHabilitadaTrue(SLUG)).thenReturn(Optional.of(empresa));
-        when(tiendaTestimonioRepository.findByEmpresaIdOrderByOrdenAscIdAsc(EMPRESA_ID)).thenReturn(List.of(testimonio));
-
-        List<PublicTestimonioDto> resultado = publicTiendaService.listarTestimonios(SLUG);
-
-        assertThat(resultado).hasSize(1);
-        assertThat(resultado.get(0).clienteNombre()).isEqualTo("Juan");
-        assertThat(resultado.get(0).comentario()).isEqualTo("Excelente atención");
-        assertThat(resultado.get(0).canal()).isEqualTo(CanalTestimonio.WHATSAPP);
-        verify(tiendaTestimonioRepository).findByEmpresaIdOrderByOrdenAscIdAsc(EMPRESA_ID);
-    }
+    // --- listarTips / listarResenas: scoping por empresa ---
 
     @Test
     void listarTipsTraeSoloLosMapeadosAlDtoPublico() {
@@ -554,6 +568,107 @@ class PublicTiendaServiceImplTest {
         List<CategoriaTiendaDto> resultado = publicTiendaService.listarCategorias(SLUG);
 
         assertThat(resultado).isEmpty();
+    }
+
+    // --- listarCategoriasMenu ---
+
+    @Test
+    void listarCategoriasMenuArmaElArbolConImagenesYSoloSubcategoriasConProductosActivos() {
+        Empresa empresa = empresa();
+        Categoria mates = categoria();
+
+        Subcategoria bombillas = new Subcategoria();
+        bombillas.setId(10L);
+        bombillas.setCategoriaId(mates.getId());
+        bombillas.setNombre("Bombillas");
+        bombillas.setImagenUrl("/uploads/categorias/bombillas.png");
+
+        Subcategoria sinProductos = new Subcategoria();
+        sinProductos.setId(11L);
+        sinProductos.setCategoriaId(mates.getId());
+        sinProductos.setNombre("Sin productos");
+
+        Producto productoMate = producto(1L, "Mate", mates);
+        productoMate.setSubcategoria(bombillas);
+
+        when(empresaRepository.findBySlugAndTiendaHabilitadaTrue(SLUG)).thenReturn(Optional.of(empresa));
+        when(productoRepository.findByEmpresaIdAndActivoTrue(EMPRESA_ID)).thenReturn(List.of(productoMate));
+        when(categoriaRepository.findByEmpresaIdOrderByNombreAsc(EMPRESA_ID)).thenReturn(List.of(mates));
+        when(subcategoriaRepository.findByCategoriaIdOrderByNombreAsc(mates.getId()))
+                .thenReturn(List.of(bombillas, sinProductos));
+        when(tiendaCategoriaRepository.findByEmpresaId(EMPRESA_ID))
+                .thenReturn(List.of(tiendaCategoria(1L, mates.getId(), null, "/uploads/categorias/mates.png")));
+
+        List<PublicCategoriaMenuDto> resultado = publicTiendaService.listarCategoriasMenu(SLUG);
+
+        assertThat(resultado).hasSize(1);
+        PublicCategoriaMenuDto categoriaDto = resultado.get(0);
+        assertThat(categoriaDto.categoriaId()).isEqualTo(mates.getId());
+        assertThat(categoriaDto.imagenUrl()).isEqualTo("/uploads/categorias/mates.png");
+        assertThat(categoriaDto.subcategorias()).hasSize(1);
+        assertThat(categoriaDto.subcategorias().get(0).id()).isEqualTo(bombillas.getId());
+        assertThat(categoriaDto.subcategorias().get(0).imagenUrl()).isEqualTo("/uploads/categorias/bombillas.png");
+    }
+
+    @Test
+    void listarCategoriasMenuIncluyeCategoriaSinImagenConfigurada() {
+        Empresa empresa = empresa();
+        Categoria mates = categoria();
+        Producto productoMate = producto(1L, "Mate", mates);
+
+        when(empresaRepository.findBySlugAndTiendaHabilitadaTrue(SLUG)).thenReturn(Optional.of(empresa));
+        when(productoRepository.findByEmpresaIdAndActivoTrue(EMPRESA_ID)).thenReturn(List.of(productoMate));
+        when(categoriaRepository.findByEmpresaIdOrderByNombreAsc(EMPRESA_ID)).thenReturn(List.of(mates));
+        when(subcategoriaRepository.findByCategoriaIdOrderByNombreAsc(mates.getId())).thenReturn(List.of());
+        when(tiendaCategoriaRepository.findByEmpresaId(EMPRESA_ID)).thenReturn(List.of());
+
+        List<PublicCategoriaMenuDto> resultado = publicTiendaService.listarCategoriasMenu(SLUG);
+
+        assertThat(resultado).hasSize(1);
+        assertThat(resultado.get(0).imagenUrl()).isNull();
+        assertThat(resultado.get(0).subcategorias()).isEmpty();
+    }
+
+    // --- listarAtributosFiltro ---
+
+    @Test
+    void listarAtributosFiltroDevuelveLosAtributosDeLaCategoriaConSusValoresAgrupados() {
+        Empresa empresa = empresa();
+        Categoria mates = categoria();
+
+        AtributoFiltro material = new AtributoFiltro();
+        material.setId(1L);
+        material.setCategoriaId(mates.getId());
+        material.setNombre("Material");
+
+        AtributoFiltroValor acero = new AtributoFiltroValor();
+        acero.setId(10L);
+        acero.setAtributoFiltroId(material.getId());
+        acero.setValor("Acero");
+
+        when(empresaRepository.findBySlugAndTiendaHabilitadaTrue(SLUG)).thenReturn(Optional.of(empresa));
+        when(categoriaRepository.findByIdAndEmpresaId(mates.getId(), EMPRESA_ID)).thenReturn(Optional.of(mates));
+        when(atributoFiltroRepository.findByCategoriaIdOrderByOrdenAsc(mates.getId())).thenReturn(List.of(material));
+        when(atributoFiltroValorRepository.findByAtributoFiltroIdOrderByOrdenAsc(material.getId()))
+                .thenReturn(List.of(acero));
+
+        List<AtributoFiltroDto> resultado = publicTiendaService.listarAtributosFiltro(SLUG, mates.getId());
+
+        assertThat(resultado).hasSize(1);
+        assertThat(resultado.get(0).nombre()).isEqualTo("Material");
+        assertThat(resultado.get(0).valores()).hasSize(1);
+        assertThat(resultado.get(0).valores().get(0).valor()).isEqualTo("Acero");
+    }
+
+    @Test
+    void listarAtributosFiltroConCategoriaDeOtraEmpresaTiraCategoriaNoEncontrada() {
+        Empresa empresa = empresa();
+
+        when(empresaRepository.findBySlugAndTiendaHabilitadaTrue(SLUG)).thenReturn(Optional.of(empresa));
+        when(categoriaRepository.findByIdAndEmpresaId(999L, EMPRESA_ID)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> publicTiendaService.listarAtributosFiltro(SLUG, 999L))
+                .isInstanceOf(CategoriaNoEncontradaException.class);
     }
 
     // --- previewDescuentoCombo ---
@@ -948,6 +1063,92 @@ class PublicTiendaServiceImplTest {
         assertThat(resultado.get(0).variantes().get(0).disponible()).isEqualTo(7);
     }
 
+    // --- listarProductos: pool de fotos (fotoUrl derivado + fotos como lista) ---
+
+    // Instancia propia con ProductoFotoResolver REAL (no el @Mock de la
+    // clase, sin stubear): estos 3 tests ejercitan la regla de negocio de
+    // verdad, no un valor mockeado — ver spec "Contrato público de fotos
+    // como lista".
+    private PublicTiendaServiceImpl servicioConResolverReal() {
+        return new PublicTiendaServiceImpl(empresaRepository, productoRepository, clienteRepository, ventaRepository,
+                ventaEstadoHistorialRepository, tiendaCategoriaRepository, categoriaRepository, subcategoriaRepository,
+                atributoFiltroRepository, atributoFiltroValorRepository,
+                tiendaBannerImagenRepository, resenaRepository, tiendaTipRepository,
+                stockDisponibleCalculator, reglaDescuentoComboRepository, calculadorDescuentoComboService,
+                imagenUploadValidator, new ProductoFotoResolver(), jwtService, passwordEncoder, googleTokenVerifier);
+    }
+
+    private ProductoFoto foto(Producto producto, Long id, Long varianteId, String url, int orden) {
+        ProductoFoto foto = new ProductoFoto();
+        foto.setId(id);
+        foto.setProducto(producto);
+        foto.setVarianteId(varianteId);
+        foto.setUrl(url);
+        foto.setOrden(orden);
+        return foto;
+    }
+
+    @Test
+    void listarProductosExponeFotoUrlDerivadaYLaListaCompletaDelPool() {
+        PublicTiendaServiceImpl servicio = servicioConResolverReal();
+        Empresa empresa = empresa();
+        Categoria categoria = categoria();
+        Producto producto = producto(90L, "Mate", categoria);
+        producto.getFotos().add(foto(producto, 1L, 5L, "/con-color.jpg", 0));
+        producto.getFotos().add(foto(producto, 2L, null, "/general.jpg", 1));
+
+        when(empresaRepository.findBySlugAndTiendaHabilitadaTrue(SLUG)).thenReturn(Optional.of(empresa));
+        when(productoRepository.findByEmpresaIdAndActivoTrue(EMPRESA_ID)).thenReturn(List.of(producto));
+        when(resenaRepository.findByEmpresaIdOrderByFechaDesc(EMPRESA_ID)).thenReturn(List.of());
+        when(stockDisponibleCalculator.calcular(producto)).thenReturn(3);
+
+        List<PublicProductoDto> resultado = servicio.listarProductos(SLUG);
+
+        // Regla de miniatura: primera SIN color por orden -> "/general.jpg".
+        assertThat(resultado.get(0).fotoUrl()).isEqualTo("/general.jpg");
+        assertThat(resultado.get(0).fotos()).hasSize(2);
+        assertThat(resultado.get(0).fotos().get(0).url()).isEqualTo("/con-color.jpg");
+    }
+
+    @Test
+    void listarProductosConVarianteExponeSuFotoPropiaDelPoolComoFotoUrlDeLaVariante() {
+        PublicTiendaServiceImpl servicio = servicioConResolverReal();
+        Empresa empresa = empresa();
+        Categoria categoria = categoria();
+        Producto producto = producto(91L, "Mate", categoria);
+        ProductoVariante rojo = variante(producto, 300L, "Rojo");
+        producto.getVariantes().add(rojo);
+        producto.getFotos().add(foto(producto, 3L, 300L, "/rojo.jpg", 0));
+
+        when(empresaRepository.findBySlugAndTiendaHabilitadaTrue(SLUG)).thenReturn(Optional.of(empresa));
+        when(productoRepository.findByEmpresaIdAndActivoTrue(EMPRESA_ID)).thenReturn(List.of(producto));
+        when(resenaRepository.findByEmpresaIdOrderByFechaDesc(EMPRESA_ID)).thenReturn(List.of());
+        when(stockDisponibleCalculator.calcular(producto)).thenReturn(3);
+        when(stockDisponibleCalculator.calcularVariante(rojo)).thenReturn(5);
+
+        List<PublicProductoDto> resultado = servicio.listarProductos(SLUG);
+
+        assertThat(resultado.get(0).variantes().get(0).fotoUrl()).isEqualTo("/rojo.jpg");
+    }
+
+    @Test
+    void listarProductosSinFotosDejaFotoUrlNullYFotosVacia() {
+        PublicTiendaServiceImpl servicio = servicioConResolverReal();
+        Empresa empresa = empresa();
+        Categoria categoria = categoria();
+        Producto producto = producto(92L, "Mate", categoria);
+
+        when(empresaRepository.findBySlugAndTiendaHabilitadaTrue(SLUG)).thenReturn(Optional.of(empresa));
+        when(productoRepository.findByEmpresaIdAndActivoTrue(EMPRESA_ID)).thenReturn(List.of(producto));
+        when(resenaRepository.findByEmpresaIdOrderByFechaDesc(EMPRESA_ID)).thenReturn(List.of());
+        when(stockDisponibleCalculator.calcular(producto)).thenReturn(3);
+
+        List<PublicProductoDto> resultado = servicio.listarProductos(SLUG);
+
+        assertThat(resultado.get(0).fotoUrl()).isNull();
+        assertThat(resultado.get(0).fotos()).isEmpty();
+    }
+
     // --- obtenerEmpresa: banner imagenes ---
 
     @Test
@@ -985,6 +1186,98 @@ class PublicTiendaServiceImplTest {
         grabado.setLugar(lugar);
         grabado.setPrecio(precio);
         return grabado;
+    }
+
+    // --- registrarCliente ---
+
+    @Test
+    void registrarClienteCreaUnClienteNuevoCuandoNoHayMatchPorEmail() {
+        Empresa empresa = empresa();
+        when(empresaRepository.findBySlugAndTiendaHabilitadaTrue(SLUG)).thenReturn(Optional.of(empresa));
+        when(clienteRepository.findByEmpresaIdAndEmail(EMPRESA_ID, "nueva@x.com")).thenReturn(Optional.empty());
+        when(passwordEncoder.encode("secreto1")).thenReturn("hash-secreto1");
+        when(clienteRepository.save(any(Cliente.class))).thenAnswer(inv -> {
+            Cliente guardado = inv.getArgument(0);
+            guardado.setId(99L);
+            return guardado;
+        });
+        when(jwtService.generateTokenCliente(any(Cliente.class))).thenReturn("jwt-de-prueba");
+
+        RegistrarClienteRequest request = new RegistrarClienteRequest("Ana", "nueva@x.com", "secreto1", "1122334455");
+        ClienteLoginResponse respuesta = publicTiendaService.registrarCliente(SLUG, request);
+
+        assertThat(respuesta.cliente().id()).isEqualTo(99L);
+        assertThat(respuesta.cliente().nombre()).isEqualTo("Ana");
+        assertThat(respuesta.token()).isEqualTo("jwt-de-prueba");
+        verify(clienteRepository).save(argThat(c ->
+                c.getPasswordHash().equals("hash-secreto1") && c.getTelefono().equals("1122334455")));
+    }
+
+    // El teléfono ya NO se usa para buscar/fusionar con otra fila (ver
+    // comentario en registrarCliente, 2026-09): dos personas que comparten
+    // el mismo teléfono de prueba terminaban fusionadas en la misma cuenta,
+    // la segunda heredando nombre/email/password de la primera. Este test
+    // reemplaza al viejo "vincula con la compra de invitado por teléfono" —
+    // ahora confirma exactamente lo contrario: crea una fila NUEVA aunque el
+    // teléfono ya exista en otro Cliente (sea invitado o cuenta registrada).
+    @Test
+    void registrarClienteNoFusionaConOtroClienteQueComparteElMismoTelefono() {
+        Empresa empresa = empresa();
+        when(empresaRepository.findBySlugAndTiendaHabilitadaTrue(SLUG)).thenReturn(Optional.of(empresa));
+        when(clienteRepository.findByEmpresaIdAndEmail(EMPRESA_ID, "ana@x.com")).thenReturn(Optional.empty());
+        when(passwordEncoder.encode("secreto1")).thenReturn("hash-secreto1");
+        when(clienteRepository.save(any(Cliente.class))).thenAnswer(inv -> {
+            Cliente guardado = inv.getArgument(0);
+            guardado.setId(99L);
+            return guardado;
+        });
+
+        RegistrarClienteRequest request = new RegistrarClienteRequest("Ana", "ana@x.com", "secreto1", "1122334455");
+        ClienteLoginResponse respuesta = publicTiendaService.registrarCliente(SLUG, request);
+
+        assertThat(respuesta.cliente().id()).isEqualTo(99L);
+        assertThat(respuesta.cliente().email()).isEqualTo("ana@x.com");
+        verify(clienteRepository, never()).findByEmpresaIdAndTelefono(any(), any());
+    }
+
+    @Test
+    void registrarClienteRechazaSiElEmailYaTieneContrasena() {
+        Empresa empresa = empresa();
+        Cliente existente = cliente(5L, "Otra", "000");
+        existente.setEmail("ana@x.com");
+        existente.setPasswordHash("ya-tiene-hash");
+        when(empresaRepository.findBySlugAndTiendaHabilitadaTrue(SLUG)).thenReturn(Optional.of(empresa));
+        when(clienteRepository.findByEmpresaIdAndEmail(EMPRESA_ID, "ana@x.com")).thenReturn(Optional.of(existente));
+
+        RegistrarClienteRequest request = new RegistrarClienteRequest("Ana", "ana@x.com", "secreto1", "1122334455");
+
+        assertThatThrownBy(() -> publicTiendaService.registrarCliente(SLUG, request))
+                .isInstanceOf(ClienteYaRegistradoException.class);
+        verify(clienteRepository, never()).save(any());
+    }
+
+    // Antes rechazaba el registro si el teléfono ya tenía una cuenta con
+    // credenciales — el teléfono ya no es una clave de identidad (ver
+    // comentario en registrarCliente, 2026-09), así que dos cuentas DISTINTAS
+    // pueden compartir el mismo teléfono sin problema; el único bloqueo real
+    // sigue siendo el email duplicado (ver
+    // registrarClienteRechazaSiElEmailYaTieneContrasena).
+    @Test
+    void registrarClientePermiteRegistrarseAunqueOtraCuentaTengaElMismoTelefono() {
+        Empresa empresa = empresa();
+        when(empresaRepository.findBySlugAndTiendaHabilitadaTrue(SLUG)).thenReturn(Optional.of(empresa));
+        when(clienteRepository.findByEmpresaIdAndEmail(EMPRESA_ID, "nueva@x.com")).thenReturn(Optional.empty());
+        when(passwordEncoder.encode("secreto1")).thenReturn("hash-secreto1");
+        when(clienteRepository.save(any(Cliente.class))).thenAnswer(inv -> {
+            Cliente guardado = inv.getArgument(0);
+            guardado.setId(77L);
+            return guardado;
+        });
+
+        RegistrarClienteRequest request = new RegistrarClienteRequest("Ana", "nueva@x.com", "secreto1", "1122334455");
+        ClienteLoginResponse respuesta = publicTiendaService.registrarCliente(SLUG, request);
+
+        assertThat(respuesta.cliente().id()).isEqualTo(77L);
     }
 
     private Cliente cliente(Long id, String nombre, String telefono) {

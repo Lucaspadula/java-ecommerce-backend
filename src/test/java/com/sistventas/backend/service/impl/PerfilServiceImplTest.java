@@ -1,5 +1,7 @@
 package com.sistventas.backend.service.impl;
 
+import com.sistventas.backend.dto.ActualizarCatalogoConfigRequest;
+import com.sistventas.backend.dto.ActualizarEstiloTextoCatalogoRequest;
 import com.sistventas.backend.dto.ActualizarPerfilRequest;
 import com.sistventas.backend.dto.ActualizarTiendaRequest;
 import com.sistventas.backend.dto.BannerImagenTiendaDto;
@@ -82,14 +84,14 @@ class PerfilServiceImplTest {
         prepararEmpresaYUsuario(empresa);
         when(empresaRepository.findBySlug("mi-tienda")).thenReturn(Optional.empty());
 
-        ActualizarTiendaRequest request = request("mi-tienda", "moderna", "marino-dorado");
+        ActualizarTiendaRequest request = request("mi-tienda", "moderna", "oscuro");
 
         PerfilDto resultado = perfilService.actualizarTienda(request, principal);
 
         assertThat(empresa.getTiendaFuente()).isEqualTo("moderna");
-        assertThat(empresa.getTiendaTema()).isEqualTo("marino-dorado");
+        assertThat(empresa.getTiendaTema()).isEqualTo("oscuro");
         assertThat(resultado.tiendaFuente()).isEqualTo("moderna");
-        assertThat(resultado.tiendaTema()).isEqualTo("marino-dorado");
+        assertThat(resultado.tiendaTema()).isEqualTo("oscuro");
     }
 
     @Test
@@ -163,6 +165,95 @@ class PerfilServiceImplTest {
         assertThat(empresa.getLogoUrl()).startsWith("/uploads/empresas/" + EMPRESA_ID + "-");
         assertThat(empresa.getLogoUrl()).endsWith(".jpg");
         assertThat(resultado.logoUrl()).isEqualTo(empresa.getLogoUrl());
+    }
+
+    @Test
+    void actualizarCatalogoPortadaImagenGuardaLaUrlGeneradaEnLaEmpresa() {
+        Empresa empresa = empresa();
+        prepararEmpresaYUsuario(empresa);
+        MultipartFile file = mock(MultipartFile.class);
+        when(imagenUploadValidator.validarYObtenerExtension(file)).thenReturn(".jpg");
+
+        PerfilDto resultado = perfilService.actualizarCatalogoPortadaImagen(file, principal);
+
+        assertThat(empresa.getCatalogoPortadaImagenUrl()).startsWith("/uploads/empresas/" + EMPRESA_ID + "-");
+        assertThat(empresa.getCatalogoPortadaImagenUrl()).endsWith(".jpg");
+        assertThat(resultado.catalogoPortadaImagenUrl()).isEqualTo(empresa.getCatalogoPortadaImagenUrl());
+    }
+
+    @Test
+    void quitarCatalogoPortadaImagenLaDejaEnNull() {
+        Empresa empresa = empresa();
+        empresa.setCatalogoPortadaImagenUrl("/uploads/empresas/10-vieja.jpg");
+        prepararEmpresaYUsuario(empresa);
+
+        PerfilDto resultado = perfilService.quitarCatalogoPortadaImagen(principal);
+
+        assertThat(empresa.getCatalogoPortadaImagenUrl()).isNull();
+        assertThat(resultado.catalogoPortadaImagenUrl()).isNull();
+    }
+
+    @Test
+    void actualizarCatalogoConfigGuardaLosTogglesYElTituloEnLaEmpresa() {
+        Empresa empresa = empresa();
+        prepararEmpresaYUsuario(empresa);
+        ActualizarCatalogoConfigRequest request =
+                new ActualizarCatalogoConfigRequest(false, "Catálogo Yeshua 2026", false, false, "#f7f3ec");
+
+        PerfilDto resultado = perfilService.actualizarCatalogoConfig(request, principal);
+
+        assertThat(empresa.isCatalogoMostrarLogo()).isFalse();
+        assertThat(empresa.getCatalogoTituloPersonalizado()).isEqualTo("Catálogo Yeshua 2026");
+        assertThat(empresa.isCatalogoMostrarDescripcion()).isFalse();
+        assertThat(empresa.isCatalogoMostrarColores()).isFalse();
+        assertThat(empresa.getCatalogoColorFondoProductos()).isEqualTo("#f7f3ec");
+        assertThat(resultado.catalogoTituloPersonalizado()).isEqualTo("Catálogo Yeshua 2026");
+        assertThat(resultado.catalogoColorFondoProductos()).isEqualTo("#f7f3ec");
+    }
+
+    @Test
+    void actualizarCatalogoConfigConTituloEnBlancoLoGuardaComoNull() {
+        Empresa empresa = empresa();
+        empresa.setCatalogoTituloPersonalizado("Título viejo");
+        prepararEmpresaYUsuario(empresa);
+        ActualizarCatalogoConfigRequest request = new ActualizarCatalogoConfigRequest(true, "   ", true, true, "");
+
+        perfilService.actualizarCatalogoConfig(request, principal);
+
+        assertThat(empresa.getCatalogoTituloPersonalizado()).isNull();
+        assertThat(empresa.getCatalogoColorFondoProductos()).isNull();
+    }
+
+    @Test
+    void actualizarEstiloTextoCatalogoGuardaLos3CamposEnLaEmpresa() {
+        Empresa empresa = empresa();
+        prepararEmpresaYUsuario(empresa);
+        ActualizarEstiloTextoCatalogoRequest request =
+                new ActualizarEstiloTextoCatalogoRequest("times", 14, "#900000");
+
+        PerfilDto resultado = perfilService.actualizarEstiloTextoCatalogo(request, principal);
+
+        assertThat(empresa.getCatalogoTextoFuente()).isEqualTo("times");
+        assertThat(empresa.getCatalogoTextoTamanio()).isEqualTo(14);
+        assertThat(empresa.getCatalogoTextoColor()).isEqualTo("#900000");
+        assertThat(resultado.catalogoTextoFuente()).isEqualTo("times");
+        assertThat(resultado.catalogoTextoTamanio()).isEqualTo(14);
+        assertThat(resultado.catalogoTextoColor()).isEqualTo("#900000");
+    }
+
+    @Test
+    void actualizarEstiloTextoCatalogoConCamposEnBlancoLosGuardaComoNull() {
+        Empresa empresa = empresa();
+        empresa.setCatalogoTextoFuente("times");
+        empresa.setCatalogoTextoColor("#900000");
+        prepararEmpresaYUsuario(empresa);
+        ActualizarEstiloTextoCatalogoRequest request = new ActualizarEstiloTextoCatalogoRequest("", null, "");
+
+        perfilService.actualizarEstiloTextoCatalogo(request, principal);
+
+        assertThat(empresa.getCatalogoTextoFuente()).isNull();
+        assertThat(empresa.getCatalogoTextoTamanio()).isNull();
+        assertThat(empresa.getCatalogoTextoColor()).isNull();
     }
 
     @Test
@@ -519,6 +610,10 @@ class PerfilServiceImplTest {
                 tiendaTema,
                 null,
                 null,
+                null,
+                null,
+                null,
+                false,
                 null,
                 null,
                 null

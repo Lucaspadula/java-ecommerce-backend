@@ -1,0 +1,1 @@
+ALTER TABLE producto ADD COLUMN foto_url_4 VARCHAR(255) NULL;

@@ -1,29 +1,43 @@
 package com.sistventas.backend.service.impl;
 
+import com.sistventas.backend.dto.ActualizarPerfilClienteRequest;
 import com.sistventas.backend.dto.BannerImagenPublicaDto;
+import com.sistventas.backend.dto.AtributoFiltroDto;
+import com.sistventas.backend.dto.AtributoFiltroValorDto;
 import com.sistventas.backend.dto.CategoriaTiendaDto;
+import com.sistventas.backend.dto.ClienteLoginDto;
+import com.sistventas.backend.dto.ClienteLoginGoogleRequest;
+import com.sistventas.backend.dto.ClienteLoginRequest;
+import com.sistventas.backend.dto.ClienteLoginResponse;
+import com.sistventas.backend.dto.CrearResenaClienteRequest;
+import com.sistventas.backend.dto.RegistrarClienteGoogleRequest;
+import com.sistventas.backend.dto.RegistrarClienteRequest;
 import com.sistventas.backend.dto.FotoUploadDto;
 import com.sistventas.backend.dto.PreviewDescuentoComboDto;
 import com.sistventas.backend.dto.ProductoGrabadoDto;
 import com.sistventas.backend.dto.PublicComponenteDto;
 import com.sistventas.backend.dto.PreviewDescuentoComboRequest;
+import com.sistventas.backend.dto.ProductoFotoDto;
+import com.sistventas.backend.dto.PublicCategoriaMenuDto;
 import com.sistventas.backend.dto.PublicEmpresaDto;
+import com.sistventas.backend.dto.PublicSubcategoriaMenuDto;
 import com.sistventas.backend.dto.PublicPedidoEstadoDto;
 import com.sistventas.backend.dto.PublicPedidoHistorialDto;
 import com.sistventas.backend.dto.PublicPedidoItemRequest;
 import com.sistventas.backend.dto.PublicPedidoRequest;
 import com.sistventas.backend.dto.PublicPedidoResultadoDto;
 import com.sistventas.backend.dto.PublicProductoDto;
-import com.sistventas.backend.dto.PublicTestimonioDto;
 import com.sistventas.backend.dto.PublicTipDto;
 import com.sistventas.backend.dto.PublicVarianteDto;
 import com.sistventas.backend.dto.ResenaDestacadaDto;
 import com.sistventas.backend.dto.ResenaDto;
+import com.sistventas.backend.entity.AtributoFiltro;
 import com.sistventas.backend.entity.Categoria;
 import com.sistventas.backend.entity.Cliente;
 import com.sistventas.backend.entity.Empresa;
 import com.sistventas.backend.entity.EstadoVenta;
 import com.sistventas.backend.entity.Producto;
+import com.sistventas.backend.entity.ProductoFoto;
 import com.sistventas.backend.entity.ProductoGrabado;
 import com.sistventas.backend.entity.ProductoVariante;
 import com.sistventas.backend.entity.ReglaDescuentoCombo;
@@ -31,16 +45,21 @@ import com.sistventas.backend.entity.Resena;
 import com.sistventas.backend.entity.Subcategoria;
 import com.sistventas.backend.entity.TiendaBannerImagen;
 import com.sistventas.backend.entity.TiendaCategoria;
-import com.sistventas.backend.entity.TiendaTestimonio;
 import com.sistventas.backend.entity.Venta;
 import com.sistventas.backend.entity.VentaItem;
 import com.sistventas.backend.exception.AccionNoPermitidaException;
+import com.sistventas.backend.exception.CategoriaNoEncontradaException;
+import com.sistventas.backend.exception.ClienteYaRegistradoException;
+import com.sistventas.backend.exception.CredencialesInvalidasException;
 import com.sistventas.backend.exception.CuponInvalidoException;
 import com.sistventas.backend.exception.ProductoNoEncontradoException;
 import com.sistventas.backend.exception.StockInsuficienteException;
 import com.sistventas.backend.exception.TiendaNoEncontradaException;
 import com.sistventas.backend.exception.VentaNoEncontradaException;
+import com.sistventas.backend.repository.AtributoFiltroRepository;
+import com.sistventas.backend.repository.AtributoFiltroValorRepository;
 import com.sistventas.backend.repository.CategoriaRepository;
+import com.sistventas.backend.repository.SubcategoriaRepository;
 import com.sistventas.backend.repository.ClienteRepository;
 import com.sistventas.backend.repository.EmpresaRepository;
 import com.sistventas.backend.repository.ProductoRepository;
@@ -48,11 +67,13 @@ import com.sistventas.backend.repository.ReglaDescuentoComboRepository;
 import com.sistventas.backend.repository.ResenaRepository;
 import com.sistventas.backend.repository.TiendaBannerImagenRepository;
 import com.sistventas.backend.repository.TiendaCategoriaRepository;
-import com.sistventas.backend.repository.TiendaTestimonioRepository;
 import com.sistventas.backend.repository.TiendaTipRepository;
 import com.sistventas.backend.repository.VentaEstadoHistorialRepository;
 import com.sistventas.backend.repository.VentaRepository;
+import com.sistventas.backend.security.GoogleTokenVerifier;
+import com.sistventas.backend.security.JwtService;
 import com.sistventas.backend.service.PublicTiendaService;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -69,6 +90,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
@@ -99,14 +121,20 @@ public class PublicTiendaServiceImpl implements PublicTiendaService {
     private final VentaEstadoHistorialRepository ventaEstadoHistorialRepository;
     private final TiendaCategoriaRepository tiendaCategoriaRepository;
     private final CategoriaRepository categoriaRepository;
+    private final SubcategoriaRepository subcategoriaRepository;
+    private final AtributoFiltroRepository atributoFiltroRepository;
+    private final AtributoFiltroValorRepository atributoFiltroValorRepository;
     private final TiendaBannerImagenRepository tiendaBannerImagenRepository;
     private final ResenaRepository resenaRepository;
-    private final TiendaTestimonioRepository tiendaTestimonioRepository;
     private final TiendaTipRepository tiendaTipRepository;
     private final StockDisponibleCalculator stockDisponibleCalculator;
     private final ReglaDescuentoComboRepository reglaDescuentoComboRepository;
     private final CalculadorDescuentoComboService calculadorDescuentoComboService;
     private final ImagenUploadValidator imagenUploadValidator;
+    private final ProductoFotoResolver productoFotoResolver;
+    private final JwtService jwtService;
+    private final PasswordEncoder passwordEncoder;
+    private final GoogleTokenVerifier googleTokenVerifier;
 
     public PublicTiendaServiceImpl(EmpresaRepository empresaRepository,
                                     ProductoRepository productoRepository,
@@ -115,14 +143,20 @@ public class PublicTiendaServiceImpl implements PublicTiendaService {
                                     VentaEstadoHistorialRepository ventaEstadoHistorialRepository,
                                     TiendaCategoriaRepository tiendaCategoriaRepository,
                                     CategoriaRepository categoriaRepository,
+                                    SubcategoriaRepository subcategoriaRepository,
+                                    AtributoFiltroRepository atributoFiltroRepository,
+                                    AtributoFiltroValorRepository atributoFiltroValorRepository,
                                     TiendaBannerImagenRepository tiendaBannerImagenRepository,
                                     ResenaRepository resenaRepository,
-                                    TiendaTestimonioRepository tiendaTestimonioRepository,
                                     TiendaTipRepository tiendaTipRepository,
                                     StockDisponibleCalculator stockDisponibleCalculator,
                                     ReglaDescuentoComboRepository reglaDescuentoComboRepository,
                                     CalculadorDescuentoComboService calculadorDescuentoComboService,
-                                    ImagenUploadValidator imagenUploadValidator) {
+                                    ImagenUploadValidator imagenUploadValidator,
+                                    ProductoFotoResolver productoFotoResolver,
+                                    JwtService jwtService,
+                                    PasswordEncoder passwordEncoder,
+                                    GoogleTokenVerifier googleTokenVerifier) {
         this.empresaRepository = empresaRepository;
         this.productoRepository = productoRepository;
         this.clienteRepository = clienteRepository;
@@ -130,14 +164,20 @@ public class PublicTiendaServiceImpl implements PublicTiendaService {
         this.ventaEstadoHistorialRepository = ventaEstadoHistorialRepository;
         this.tiendaCategoriaRepository = tiendaCategoriaRepository;
         this.categoriaRepository = categoriaRepository;
+        this.subcategoriaRepository = subcategoriaRepository;
+        this.atributoFiltroRepository = atributoFiltroRepository;
+        this.atributoFiltroValorRepository = atributoFiltroValorRepository;
         this.tiendaBannerImagenRepository = tiendaBannerImagenRepository;
         this.resenaRepository = resenaRepository;
-        this.tiendaTestimonioRepository = tiendaTestimonioRepository;
         this.tiendaTipRepository = tiendaTipRepository;
         this.stockDisponibleCalculator = stockDisponibleCalculator;
         this.reglaDescuentoComboRepository = reglaDescuentoComboRepository;
         this.calculadorDescuentoComboService = calculadorDescuentoComboService;
         this.imagenUploadValidator = imagenUploadValidator;
+        this.productoFotoResolver = productoFotoResolver;
+        this.jwtService = jwtService;
+        this.passwordEncoder = passwordEncoder;
+        this.googleTokenVerifier = googleTokenVerifier;
     }
 
     @Override
@@ -152,6 +192,11 @@ public class PublicTiendaServiceImpl implements PublicTiendaService {
                 tiendaBannerImagenRepository.findByEmpresaIdAndTipoOrderByOrden(empresa.getId(), "VERTICAL").stream()
                         .map(this::toBannerImagenPublicaDto)
                         .toList();
+        // Una fecha límite vencida oculta la barra sola, sin que el dueño
+        // tenga que desactivarla a mano (ver Empresa.tiendaOfertaFechaFin).
+        boolean ofertaVigente = empresa.isTiendaOfertaActiva()
+                && empresa.getTiendaOfertaFechaFin() != null
+                && empresa.getTiendaOfertaFechaFin().isAfter(LocalDateTime.now());
         return new PublicEmpresaDto(
                 empresa.getNombre(),
                 empresa.getLogoUrl(),
@@ -169,7 +214,10 @@ public class PublicTiendaServiceImpl implements PublicTiendaService {
                 empresa.getTiendaRazonSocial(),
                 empresa.getTiendaCuit(),
                 empresa.getTiendaDireccion(),
-                empresa.getTiendaSobreNosotros()
+                empresa.getTiendaSobreNosotros(),
+                ofertaVigente ? empresa.getTiendaOfertaEtiqueta() : null,
+                ofertaVigente ? empresa.getTiendaOfertaTexto() : null,
+                ofertaVigente ? empresa.getTiendaOfertaFechaFin() : null
         );
     }
 
@@ -201,13 +249,15 @@ public class PublicTiendaServiceImpl implements PublicTiendaService {
     public List<PublicProductoDto> listarProductos(String slug) {
         Empresa empresa = resolverEmpresa(slug);
 
-        // Resuelve la reseña MÁS RECIENTE de cada producto en un solo query
-        // (no un N+1 por producto): la lista ya viene ordenada por fecha
-        // desc, así que toMap con merge (a, b) -> a se queda con la primera
-        // ocurrencia de cada productoId, que es la más reciente.
-        Map<Long, Resena> resenaMasRecientePorProducto = resenaRepository.findByEmpresaIdOrderByFechaDesc(empresa.getId())
+        // Todas las reseñas de la empresa en un solo query (no un N+1 por
+        // producto), agrupadas por productoId. La lista de origen ya viene
+        // ordenada por fecha desc, así que el primer elemento de cada grupo
+        // es la reseña MÁS RECIENTE de ese producto (para el teaser
+        // resenaDestacada) — y del grupo entero sale el promedio/cantidad
+        // (solo contando las de compra verificada, ver toProductoDto).
+        Map<Long, List<Resena>> resenasPorProducto = resenaRepository.findByEmpresaIdOrderByFechaDesc(empresa.getId())
                 .stream()
-                .collect(Collectors.toMap(Resena::getProductoId, Function.identity(), (a, b) -> a));
+                .collect(Collectors.groupingBy(Resena::getProductoId));
 
         return productoRepository.findByEmpresaIdAndActivoTrue(empresa.getId()).stream()
                 // No se muestra lo que no hay stock disponible. Usa el mismo
@@ -215,7 +265,7 @@ public class PublicTiendaServiceImpl implements PublicTiendaService {
                 // para productos con receta esto no es Producto.stock, es lo
                 // que alcanza a armar según el stock de insumos.
                 .filter(producto -> stockDisponibleCalculator.calcular(producto) > 0)
-                .map(producto -> toProductoDto(producto, resenaMasRecientePorProducto.get(producto.getId())))
+                .map(producto -> toProductoDto(producto, resenasPorProducto.get(producto.getId())))
                 .toList();
     }
 
@@ -248,21 +298,244 @@ public class PublicTiendaServiceImpl implements PublicTiendaService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<ResenaDto> listarResenas(String slug, Long productoId) {
+    public List<PublicCategoriaMenuDto> listarCategoriasMenu(String slug) {
         Empresa empresa = resolverEmpresa(slug);
-        Producto producto = buscarProductoActivo(productoId, empresa.getId());
-        return resenaRepository.findByProductoIdOrderByFechaDesc(producto.getId()).stream()
-                .map(r -> new ResenaDto(r.getId(), r.getClienteNombre(), r.getComentario(), r.getFecha(), r.getImagenUrl()))
+        Long empresaId = empresa.getId();
+
+        // Árbol para el mega-menú del navbar: a diferencia de listarCategorias
+        // (que solo trae categorías con color/imagen configurados, para el
+        // carrusel "Explorá por categoría"), acá van TODAS las categorías con
+        // productos activos, tengan o no imagen — el mega-menú es navegación,
+        // no una vidriera decorativa, así que una categoría sin imagen igual
+        // tiene que aparecer como link. Mismo criterio para subcategorías.
+        List<Producto> productosActivos = productoRepository.findByEmpresaIdAndActivoTrue(empresaId);
+        Set<Long> categoriaIdsReales = productosActivos.stream()
+                .map(producto -> producto.getCategoria().getId())
+                .collect(Collectors.toSet());
+        Set<Long> subcategoriaIdsReales = productosActivos.stream()
+                .map(Producto::getSubcategoria)
+                .filter(Objects::nonNull)
+                .map(Subcategoria::getId)
+                .collect(Collectors.toSet());
+
+        Map<Long, TiendaCategoria> imagenPorCategoriaId = tiendaCategoriaRepository.findByEmpresaId(empresaId).stream()
+                .collect(Collectors.toMap(TiendaCategoria::getCategoriaId, Function.identity()));
+
+        return categoriaRepository.findByEmpresaIdOrderByNombreAsc(empresaId).stream()
+                .filter(categoria -> categoriaIdsReales.contains(categoria.getId()))
+                .map(categoria -> {
+                    List<PublicSubcategoriaMenuDto> subcategorias =
+                            subcategoriaRepository.findByCategoriaIdOrderByNombreAsc(categoria.getId()).stream()
+                                    .filter(sub -> subcategoriaIdsReales.contains(sub.getId()))
+                                    .map(sub -> new PublicSubcategoriaMenuDto(sub.getId(), sub.getNombre(), sub.getImagenUrl()))
+                                    .toList();
+                    TiendaCategoria tiendaCategoria = imagenPorCategoriaId.get(categoria.getId());
+                    String imagenUrl = tiendaCategoria != null ? tiendaCategoria.getImagenUrl() : null;
+                    return new PublicCategoriaMenuDto(categoria.getId(), categoria.getNombre(), imagenUrl, subcategorias);
+                })
                 .toList();
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<PublicTestimonioDto> listarTestimonios(String slug) {
+    public List<AtributoFiltroDto> listarAtributosFiltro(String slug, Long categoriaId) {
         Empresa empresa = resolverEmpresa(slug);
-        return tiendaTestimonioRepository.findByEmpresaIdOrderByOrdenAscIdAsc(empresa.getId()).stream()
-                .map(t -> new PublicTestimonioDto(t.getClienteNombre(), t.getComentario(), t.getFotoUrl(), t.getCanal()))
+        Categoria categoria = categoriaRepository.findByIdAndEmpresaId(categoriaId, empresa.getId())
+                .orElseThrow(CategoriaNoEncontradaException::new);
+        return atributoFiltroRepository.findByCategoriaIdOrderByOrdenAsc(categoria.getId()).stream()
+                .map(this::toAtributoFiltroDto)
                 .toList();
+    }
+
+    private AtributoFiltroDto toAtributoFiltroDto(AtributoFiltro atributo) {
+        List<AtributoFiltroValorDto> valores = atributoFiltroValorRepository
+                .findByAtributoFiltroIdOrderByOrdenAsc(atributo.getId()).stream()
+                .map(v -> new AtributoFiltroValorDto(v.getId(), v.getValor()))
+                .toList();
+        return new AtributoFiltroDto(atributo.getId(), atributo.getCategoriaId(), atributo.getNombre(), valores);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ResenaDto> listarResenas(String slug, Long productoId) {
+        Empresa empresa = resolverEmpresa(slug);
+        Producto producto = buscarProductoActivo(productoId, empresa.getId());
+        return resenaRepository.findByProductoIdOrderByFechaDesc(producto.getId()).stream()
+                .map(r -> new ResenaDto(r.getId(), r.getClienteNombre(), r.getComentario(), r.getPuntuacion(),
+                        r.getFecha(), r.getImagenUrl(), r.getVentaId() != null))
+                .toList();
+    }
+
+    @Override
+    @Transactional
+    public ResenaDto crearResenaCliente(String slug, Long productoId, CrearResenaClienteRequest request) {
+        Empresa empresa = resolverEmpresa(slug);
+        Producto producto = buscarProductoActivo(productoId, empresa.getId());
+
+        // Mismo criterio que consultarPedido: "venta no encontrada" cubre
+        // tanto la venta inexistente como el teléfono que no coincide, así
+        // no sirve para adivinar pedidos ajenos probando números al azar.
+        Venta venta = ventaRepository.findByIdAndEmpresaId(request.ventaId(), empresa.getId())
+                .orElseThrow(VentaNoEncontradaException::new);
+        Cliente cliente = clienteRepository.findByIdAndEmpresaId(venta.getClienteId(), empresa.getId())
+                .orElseThrow(VentaNoEncontradaException::new);
+        String telefonoRecibido = request.telefono().trim();
+        String telefonoCliente = cliente.getTelefono() != null ? cliente.getTelefono().trim() : "";
+        if (!telefonoCliente.equals(telefonoRecibido)) {
+            throw new VentaNoEncontradaException();
+        }
+
+        if (venta.getEstado() != EstadoVenta.ENTREGADA) {
+            throw new AccionNoPermitidaException("Todavía no podés reseñar este producto: el pedido no está entregado.");
+        }
+        boolean productoEnLaVenta = venta.getItems().stream()
+                .anyMatch(item -> productoId.equals(item.getProductoId()));
+        if (!productoEnLaVenta) {
+            throw new AccionNoPermitidaException("Este producto no forma parte de ese pedido.");
+        }
+        if (resenaRepository.existsByVentaIdAndProductoId(venta.getId(), productoId)) {
+            throw new AccionNoPermitidaException("Ya dejaste una reseña de este producto para esta compra.");
+        }
+
+        Resena resena = new Resena();
+        resena.setProductoId(productoId);
+        resena.setEmpresaId(empresa.getId());
+        resena.setClienteNombre(cliente.getNombre());
+        resena.setComentario(vacioComoNull(request.comentario()));
+        resena.setPuntuacion(request.puntuacion());
+        resena.setVentaId(venta.getId());
+        resena.setFecha(LocalDateTime.now());
+        Resena guardada = resenaRepository.save(resena);
+
+        return new ResenaDto(guardada.getId(), guardada.getClienteNombre(), guardada.getComentario(),
+                guardada.getPuntuacion(), guardada.getFecha(), guardada.getImagenUrl(), true);
+    }
+
+    // --- Cuenta de cliente (login en la tienda pública) ---
+    // Fase 1: solo login, sin registro todavía (ver plan acordado) — si no
+    // existe cuenta, el error es el mismo genérico de siempre
+    // (CredencialesInvalidasException), no un 404 que revele si el email
+    // existe o no.
+
+    @Override
+    @Transactional(readOnly = true)
+    public ClienteLoginResponse loginCliente(String slug, ClienteLoginRequest request) {
+        Empresa empresa = resolverEmpresa(slug);
+        Cliente cliente = clienteRepository.findByEmpresaIdAndEmail(empresa.getId(), request.email())
+                .orElseThrow(CredencialesInvalidasException::new);
+
+        if (cliente.getPasswordHash() == null
+                || !passwordEncoder.matches(request.password(), cliente.getPasswordHash())) {
+            throw new CredencialesInvalidasException();
+        }
+
+        return construirClienteLoginResponse(cliente);
+    }
+
+    @Override
+    @Transactional
+    public ClienteLoginResponse loginClienteGoogle(String slug, ClienteLoginGoogleRequest request) {
+        Empresa empresa = resolverEmpresa(slug);
+        GoogleTokenVerifier.GoogleTokenInfo tokenInfo = googleTokenVerifier.verificar(request.idToken());
+
+        // Primero por googleSub ya vinculado; si es la primera vez que este
+        // cliente usa Google, cae al fallback por email — cubre tanto al
+        // que ya se había registrado con contraseña como al que solo existe
+        // como Cliente de una venta de invitado con ese mismo email cargado
+        // en el checkout (Google confirma que es dueño de ese email, así
+        // que vincularlo acá es seguro, no una suposición).
+        Cliente cliente = clienteRepository.findByEmpresaIdAndGoogleSub(empresa.getId(), tokenInfo.sub())
+                .or(() -> clienteRepository.findByEmpresaIdAndEmail(empresa.getId(), tokenInfo.email()))
+                .orElseThrow(CredencialesInvalidasException::new);
+
+        if (cliente.getGoogleSub() == null) {
+            cliente.setGoogleSub(tokenInfo.sub());
+            clienteRepository.save(cliente);
+        }
+
+        return construirClienteLoginResponse(cliente);
+    }
+
+    @Override
+    @Transactional
+    public ClienteLoginResponse registrarCliente(String slug, RegistrarClienteRequest request) {
+        Empresa empresa = resolverEmpresa(slug);
+        String email = request.email().trim();
+        String telefono = request.telefono().trim();
+
+        Optional<Cliente> porEmail = clienteRepository.findByEmpresaIdAndEmail(empresa.getId(), email);
+        if (porEmail.isPresent() && tieneCredenciales(porEmail.get())) {
+            throw new ClienteYaRegistradoException("Ese email ya está registrado. Iniciá sesión.");
+        }
+
+        // Solo EMAIL identifica la cuenta — el teléfono ya no se usa para
+        // buscar/fusionar con otra fila. Antes matcheaba (primero, después
+        // como respaldo) por teléfono para "adoptar" una fila de compra de
+        // invitado, pero dos clientes DISTINTOS que compartían el mismo
+        // teléfono (typo, número de prueba reciclado) terminaban fusionados
+        // en la MISMA fila: el segundo registro pisaba nombre/email/password
+        // del primero, que pasaba a loguear como si fuera el segundo
+        // (hallazgo del dueño, 2026-09: "cada vez que un usuario se loguea,
+        // ingresa como test"). El teléfono no tiene por qué ser una clave de
+        // identidad — se guarda como dato de contacto nada más.
+        Cliente cliente = porEmail.orElseGet(Cliente::new);
+        if (cliente.getId() == null) {
+            cliente.setEmpresaId(empresa.getId());
+            cliente.setActivo(true);
+            cliente.setFechaAlta(LocalDateTime.now());
+        }
+        cliente.setNombre(request.nombre());
+        cliente.setEmail(email);
+        cliente.setTelefono(telefono);
+        cliente.setPasswordHash(passwordEncoder.encode(request.password()));
+        Cliente guardado = clienteRepository.save(cliente);
+
+        // Mail de bienvenida: pendiente (falta la infra de envío de mails —
+        // ver plan acordado, requiere API key de Resend).
+        return construirClienteLoginResponse(guardado);
+    }
+
+    @Override
+    @Transactional
+    public ClienteLoginResponse registrarClienteGoogle(String slug, RegistrarClienteGoogleRequest request) {
+        Empresa empresa = resolverEmpresa(slug);
+        GoogleTokenVerifier.GoogleTokenInfo tokenInfo = googleTokenVerifier.verificar(request.idToken());
+        String telefono = request.telefono().trim();
+
+        if (clienteRepository.findByEmpresaIdAndGoogleSub(empresa.getId(), tokenInfo.sub()).isPresent()) {
+            throw new ClienteYaRegistradoException("Ya existe una cuenta con este Google. Iniciá sesión.");
+        }
+        Optional<Cliente> porEmail = clienteRepository.findByEmpresaIdAndEmail(empresa.getId(), tokenInfo.email());
+        if (porEmail.isPresent() && tieneCredenciales(porEmail.get())) {
+            throw new ClienteYaRegistradoException("Ese email ya está registrado. Iniciá sesión.");
+        }
+
+        // Mismo criterio que registrarCliente: solo email identifica la
+        // cuenta, el teléfono no se usa para buscar/fusionar con otra fila.
+        Cliente cliente = porEmail.orElseGet(Cliente::new);
+        if (cliente.getId() == null) {
+            cliente.setEmpresaId(empresa.getId());
+            cliente.setActivo(true);
+            cliente.setFechaAlta(LocalDateTime.now());
+            cliente.setNombre(tokenInfo.nombre() != null ? tokenInfo.nombre() : tokenInfo.email());
+        }
+        cliente.setEmail(tokenInfo.email());
+        cliente.setTelefono(telefono);
+        cliente.setGoogleSub(tokenInfo.sub());
+        Cliente guardado = clienteRepository.save(cliente);
+
+        return construirClienteLoginResponse(guardado);
+    }
+
+    private boolean tieneCredenciales(Cliente cliente) {
+        return cliente.getPasswordHash() != null || cliente.getGoogleSub() != null;
+    }
+
+    private ClienteLoginResponse construirClienteLoginResponse(Cliente cliente) {
+        String token = jwtService.generateTokenCliente(cliente);
+        ClienteLoginDto clienteDto =
+                new ClienteLoginDto(cliente.getId(), cliente.getNombre(), cliente.getEmail(), cliente.getTelefono());
+        return new ClienteLoginResponse(token, clienteDto);
     }
 
     @Override
@@ -488,8 +761,38 @@ public class PublicTiendaServiceImpl implements PublicTiendaService {
             throw new VentaNoEncontradaException();
         }
 
+        return mapearPedidoEstado(venta);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<PublicPedidoEstadoDto> listarPedidosCliente(String slug, Long clienteId) {
+        Empresa empresa = resolverEmpresa(slug);
+        return ventaRepository.findByEmpresaIdAndClienteIdOrderByFechaPedidoDesc(empresa.getId(), clienteId).stream()
+                .map(this::mapearPedidoEstado)
+                .toList();
+    }
+
+    @Override
+    @Transactional
+    public ClienteLoginDto actualizarPerfilCliente(String slug, Long clienteId, ActualizarPerfilClienteRequest request) {
+        Empresa empresa = resolverEmpresa(slug);
+        Cliente cliente = clienteRepository.findByIdAndEmpresaId(clienteId, empresa.getId())
+                .orElseThrow(CredencialesInvalidasException::new);
+
+        cliente.setNombre(request.nombre().trim());
+        cliente.setTelefono(request.telefono().trim());
+        Cliente guardado = clienteRepository.save(cliente);
+
+        return new ClienteLoginDto(guardado.getId(), guardado.getNombre(), guardado.getEmail(), guardado.getTelefono());
+    }
+
+    // Compartido por consultarPedido (una venta puntual, sin sesión) y
+    // listarPedidosCliente (todas las de la cuenta logueada) — mismo mapeo,
+    // incluido el historial de estados.
+    private PublicPedidoEstadoDto mapearPedidoEstado(Venta venta) {
         List<PublicPedidoHistorialDto> historial = ventaEstadoHistorialRepository
-                .findByVentaIdOrderByFechaDescIdDesc(ventaId).stream()
+                .findByVentaIdOrderByFechaDescIdDesc(venta.getId()).stream()
                 .map(h -> new PublicPedidoHistorialDto(h.getEstadoAnterior(), h.getEstadoNuevo(), h.getFecha()))
                 .toList();
 
@@ -575,15 +878,39 @@ public class PublicTiendaServiceImpl implements PublicTiendaService {
         );
     }
 
-    private PublicProductoDto toProductoDto(Producto producto, Resena resenaMasReciente) {
+    private PublicProductoDto toProductoDto(Producto producto, List<Resena> resenas) {
+        List<Resena> resenasDelProducto = resenas != null ? resenas : List.of();
+        Resena resenaMasReciente = resenasDelProducto.stream().findFirst().orElse(null);
         ResenaDestacadaDto resenaDestacada = resenaMasReciente != null
                 ? new ResenaDestacadaDto(resenaMasReciente.getClienteNombre(), resenaMasReciente.getComentario())
                 : null;
+        // Promedio/cantidad SOLO de reseñas con compra verificada (ventaId no
+        // null): las cargadas a mano por el admin tienen puntuacion=5 por
+        // default de columna, no un rating real, así que mezclarlas
+        // inflaría el promedio artificialmente.
+        List<Resena> resenasVerificadas = resenasDelProducto.stream()
+                .filter(r -> r.getVentaId() != null)
+                .toList();
+        Double promedioResenas = resenasVerificadas.isEmpty()
+                ? null
+                : resenasVerificadas.stream().mapToInt(Resena::getPuntuacion).average().orElse(0);
+        Integer cantidadResenas = resenasVerificadas.size();
+        List<ProductoFoto> fotosOrdenadas = producto.getFotos().stream()
+                .sorted(java.util.Comparator.comparingInt(ProductoFoto::getOrden))
+                .toList();
+        List<ProductoFotoDto> fotos = fotosOrdenadas.stream()
+                .map(foto -> new ProductoFotoDto(foto.getId(), foto.getUrl(), foto.getVarianteId(), foto.getOrden(), foto.isAgrandada()))
+                .toList();
         List<PublicVarianteDto> variantes = producto.getVariantes().stream()
                 .map(variante -> new PublicVarianteDto(
                         variante.getId(),
                         variante.getColor(),
-                        stockDisponibleCalculator.calcularVariante(variante)))
+                        stockDisponibleCalculator.calcularVariante(variante),
+                        productoFotoResolver.fotosDeVariante(fotosOrdenadas, variante.getId()).stream()
+                                .findFirst()
+                                .map(ProductoFoto::getUrl)
+                                .orElse(null),
+                        variante.getColorHex()))
                 .toList();
         List<PublicComponenteDto> componentes = producto.getComponentes().stream()
                 .map(componente -> new PublicComponenteDto(
@@ -593,22 +920,28 @@ public class PublicTiendaServiceImpl implements PublicTiendaService {
         List<ProductoGrabadoDto> grabados = producto.getGrabados().stream()
                 .map(grabado -> new ProductoGrabadoDto(grabado.getId(), grabado.getLugar(), grabado.getPrecio()))
                 .toList();
+        List<AtributoFiltroValorDto> atributoValores = producto.getAtributoValores().stream()
+                .map(valor -> new AtributoFiltroValorDto(valor.getId(), valor.getValor()))
+                .toList();
         return new PublicProductoDto(
                 producto.getId(),
                 producto.getNombre(),
                 producto.getDescripcion(),
                 producto.getCategoria().getNombre(),
+                producto.getSubcategoria() != null ? producto.getSubcategoria().getNombre() : null,
                 producto.getCategoria().getId(),
                 producto.getSubcategoria() != null ? producto.getSubcategoria().getId() : null,
                 producto.getPrecioVenta(),
-                producto.getFotoUrl(),
-                producto.getFotoUrl2(),
-                producto.getFotoUrl3(),
+                productoFotoResolver.resolverMiniatura(fotosOrdenadas),
+                fotos,
                 stockDisponibleCalculator.calcular(producto),
                 resenaDestacada,
+                promedioResenas,
+                cantidadResenas,
                 variantes,
                 componentes,
-                grabados
+                grabados,
+                atributoValores
         );
     }
 }

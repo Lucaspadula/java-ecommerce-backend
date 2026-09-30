@@ -59,5 +59,8 @@ public record ActualizarProductoRequest(
         Integer stock,
 
         @DecimalMin(value = "0.0", message = "El costo unitario no puede ser negativo")
-        BigDecimal costoUnitario
+        BigDecimal costoUnitario,
+
+        // Atributos de filtro asignados — ver ProductoRequest.
+        List<Long> atributoValorIds
 ) {}

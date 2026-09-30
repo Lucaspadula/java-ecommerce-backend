@@ -19,4 +19,9 @@ public interface ResenaRepository extends JpaRepository<Resena, Long> {
     // pertenezca a ESE producto Y a la empresa del usuario, no solo el id de
     // la reseña suelto — mismo criterio que ProductoRepository.findByIdAndEmpresaId.
     Optional<Resena> findByIdAndProductoIdAndEmpresaId(Long id, Long productoId, Long empresaId);
+
+    // Bloquea una segunda reseña de la MISMA compra para el MISMO producto
+    // (ver PublicTiendaServiceImpl.crearResenaCliente) — no impide que un
+    // cliente reseñe el mismo producto en una venta distinta.
+    boolean existsByVentaIdAndProductoId(Long ventaId, Long productoId);
 }

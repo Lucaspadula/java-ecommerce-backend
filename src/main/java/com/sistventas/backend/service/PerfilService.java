@@ -1,5 +1,7 @@
 package com.sistventas.backend.service;
 
+import com.sistventas.backend.dto.ActualizarCatalogoConfigRequest;
+import com.sistventas.backend.dto.ActualizarEstiloTextoCatalogoRequest;
 import com.sistventas.backend.dto.ActualizarGeminiApiKeyRequest;
 import com.sistventas.backend.dto.ActualizarPerfilRequest;
 import com.sistventas.backend.dto.ActualizarTiendaRequest;
@@ -34,4 +36,19 @@ public interface PerfilService {
     // Permite cambiar o sacar el producto asociado a una imagen YA subida,
     // sin tener que resubirla. productoId null = desvincular.
     BannerImagenTiendaDto actualizarProductoBannerImagen(Long imagenId, Long productoId, UserPrincipal principal);
+
+    // Fondo de la portada del catálogo en PDF (ver CatalogoServiceImpl.dibujarPortada) — opcional, sin
+    // ella se usa el color oscuro fijo de siempre.
+    PerfilDto actualizarCatalogoPortadaImagen(MultipartFile file, UserPrincipal principal);
+
+    PerfilDto quitarCatalogoPortadaImagen(UserPrincipal principal);
+
+    // Toggles de qué mostrar en el catálogo PDF (ver CatalogoServiceImpl):
+    // logo en la portada, título personalizado, descripción y colores por
+    // producto.
+    PerfilDto actualizarCatalogoConfig(ActualizarCatalogoConfigRequest request, UserPrincipal principal);
+
+    // Estilo GLOBAL (tipografía/tamaño/color) del texto de "Importante"/
+    // "Cómo comprar" en el catálogo PDF — ver CatalogoServiceImpl.
+    PerfilDto actualizarEstiloTextoCatalogo(ActualizarEstiloTextoCatalogoRequest request, UserPrincipal principal);
 }

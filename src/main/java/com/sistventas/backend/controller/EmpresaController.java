@@ -1,24 +1,27 @@
 package com.sistventas.backend.controller;
 
 import com.sistventas.backend.dto.ActualizarColorCategoriaRequest;
+import com.sistventas.backend.dto.ActualizarCatalogoConfigRequest;
+import com.sistventas.backend.dto.ActualizarCatalogoSeccionRequest;
+import com.sistventas.backend.dto.ActualizarEstiloTextoCatalogoRequest;
 import com.sistventas.backend.dto.ActualizarProductoBannerImagenRequest;
 import com.sistventas.backend.dto.ActualizarReglaDescuentoComboRequest;
 import com.sistventas.backend.dto.ActualizarTiendaRequest;
 import com.sistventas.backend.dto.BannerImagenTiendaDto;
+import com.sistventas.backend.dto.CatalogoSeccionDto;
 import com.sistventas.backend.dto.CategoriaSubcategoriaDto;
 import com.sistventas.backend.dto.CategoriaTiendaDto;
+import com.sistventas.backend.dto.CrearCatalogoSeccionRequest;
 import com.sistventas.backend.dto.CrearReglaDescuentoComboRequest;
-import com.sistventas.backend.dto.CrearTestimonioRequest;
 import com.sistventas.backend.dto.CrearTipRequest;
 import com.sistventas.backend.dto.PerfilDto;
 import com.sistventas.backend.dto.ReglaDescuentoComboDto;
-import com.sistventas.backend.dto.TestimonioDto;
 import com.sistventas.backend.dto.TipDto;
 import com.sistventas.backend.security.UserPrincipal;
 import com.sistventas.backend.service.PerfilService;
 import com.sistventas.backend.service.ReglaDescuentoComboService;
+import com.sistventas.backend.service.TiendaCatalogoSeccionService;
 import com.sistventas.backend.service.TiendaCategoriaService;
-import com.sistventas.backend.service.TiendaTestimonioService;
 import com.sistventas.backend.service.TiendaTipService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -50,20 +53,20 @@ public class EmpresaController {
 
     private final PerfilService perfilService;
     private final TiendaCategoriaService tiendaCategoriaService;
-    private final TiendaTestimonioService tiendaTestimonioService;
     private final TiendaTipService tiendaTipService;
     private final ReglaDescuentoComboService reglaDescuentoComboService;
+    private final TiendaCatalogoSeccionService tiendaCatalogoSeccionService;
 
     public EmpresaController(PerfilService perfilService,
                               TiendaCategoriaService tiendaCategoriaService,
-                              TiendaTestimonioService tiendaTestimonioService,
                               TiendaTipService tiendaTipService,
-                              ReglaDescuentoComboService reglaDescuentoComboService) {
+                              ReglaDescuentoComboService reglaDescuentoComboService,
+                              TiendaCatalogoSeccionService tiendaCatalogoSeccionService) {
         this.perfilService = perfilService;
         this.tiendaCategoriaService = tiendaCategoriaService;
-        this.tiendaTestimonioService = tiendaTestimonioService;
         this.tiendaTipService = tiendaTipService;
         this.reglaDescuentoComboService = reglaDescuentoComboService;
+        this.tiendaCatalogoSeccionService = tiendaCatalogoSeccionService;
     }
 
     @PostMapping(value = "/logo", consumes = "multipart/form-data")
@@ -71,6 +74,32 @@ public class EmpresaController {
             @RequestParam("file") MultipartFile file,
             @AuthenticationPrincipal UserPrincipal principal) {
         return ResponseEntity.ok(perfilService.actualizarLogoEmpresa(file, principal));
+    }
+
+    @PostMapping(value = "/tienda/catalogo-portada", consumes = "multipart/form-data")
+    public ResponseEntity<PerfilDto> actualizarCatalogoPortadaImagen(
+            @RequestParam("file") MultipartFile file,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(perfilService.actualizarCatalogoPortadaImagen(file, principal));
+    }
+
+    @DeleteMapping("/tienda/catalogo-portada")
+    public ResponseEntity<PerfilDto> quitarCatalogoPortadaImagen(@AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(perfilService.quitarCatalogoPortadaImagen(principal));
+    }
+
+    @PutMapping("/tienda/catalogo-config")
+    public ResponseEntity<PerfilDto> actualizarCatalogoConfig(
+            @Valid @RequestBody ActualizarCatalogoConfigRequest request,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(perfilService.actualizarCatalogoConfig(request, principal));
+    }
+
+    @PutMapping("/tienda/catalogo-estilo-texto")
+    public ResponseEntity<PerfilDto> actualizarEstiloTextoCatalogo(
+            @Valid @RequestBody ActualizarEstiloTextoCatalogoRequest request,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(perfilService.actualizarEstiloTextoCatalogo(request, principal));
     }
 
     @PutMapping("/tienda")
@@ -142,36 +171,6 @@ public class EmpresaController {
         return ResponseEntity.ok(tiendaCategoriaService.eliminarImagen(categoriaId, principal));
     }
 
-    @GetMapping("/tienda/testimonios")
-    public ResponseEntity<List<TestimonioDto>> listarTestimonios(
-            @AuthenticationPrincipal UserPrincipal principal) {
-        return ResponseEntity.ok(tiendaTestimonioService.listar(principal));
-    }
-
-    @PostMapping("/tienda/testimonios")
-    public ResponseEntity<TestimonioDto> crearTestimonio(
-            @Valid @RequestBody CrearTestimonioRequest request,
-            @AuthenticationPrincipal UserPrincipal principal) {
-        TestimonioDto dto = tiendaTestimonioService.crear(request, principal);
-        return ResponseEntity.status(HttpStatus.CREATED).body(dto);
-    }
-
-    @DeleteMapping("/tienda/testimonios/{id}")
-    public ResponseEntity<Void> eliminarTestimonio(
-            @PathVariable Long id,
-            @AuthenticationPrincipal UserPrincipal principal) {
-        tiendaTestimonioService.eliminar(id, principal);
-        return ResponseEntity.noContent().build();
-    }
-
-    @PostMapping(value = "/tienda/testimonios/{id}/foto", consumes = "multipart/form-data")
-    public ResponseEntity<TestimonioDto> actualizarFotoTestimonio(
-            @PathVariable Long id,
-            @RequestParam("file") MultipartFile file,
-            @AuthenticationPrincipal UserPrincipal principal) {
-        return ResponseEntity.ok(tiendaTestimonioService.actualizarFoto(id, file, principal));
-    }
-
     @GetMapping("/tienda/tips")
     public ResponseEntity<List<TipDto>> listarTips(
             @AuthenticationPrincipal UserPrincipal principal) {
@@ -200,6 +199,36 @@ public class EmpresaController {
             @RequestParam("file") MultipartFile file,
             @AuthenticationPrincipal UserPrincipal principal) {
         return ResponseEntity.ok(tiendaTipService.actualizarFoto(id, file, principal));
+    }
+
+    @GetMapping("/tienda/catalogo-secciones")
+    public ResponseEntity<List<CatalogoSeccionDto>> listarCatalogoSecciones(
+            @AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(tiendaCatalogoSeccionService.listar(principal));
+    }
+
+    @PostMapping("/tienda/catalogo-secciones")
+    public ResponseEntity<CatalogoSeccionDto> crearCatalogoSeccion(
+            @Valid @RequestBody CrearCatalogoSeccionRequest request,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        CatalogoSeccionDto dto = tiendaCatalogoSeccionService.crear(request, principal);
+        return ResponseEntity.status(HttpStatus.CREATED).body(dto);
+    }
+
+    @PutMapping("/tienda/catalogo-secciones/{id}")
+    public ResponseEntity<CatalogoSeccionDto> actualizarCatalogoSeccion(
+            @PathVariable Long id,
+            @Valid @RequestBody ActualizarCatalogoSeccionRequest request,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(tiendaCatalogoSeccionService.actualizar(id, request, principal));
+    }
+
+    @DeleteMapping("/tienda/catalogo-secciones/{id}")
+    public ResponseEntity<Void> eliminarCatalogoSeccion(
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        tiendaCatalogoSeccionService.eliminar(id, principal);
+        return ResponseEntity.noContent().build();
     }
 
     // Categorías/subcategorías reales (de productos activos), para poblar

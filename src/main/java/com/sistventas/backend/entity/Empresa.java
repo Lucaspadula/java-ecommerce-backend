@@ -29,6 +29,50 @@ public class Empresa {
     @Column(name = "logo_url")
     private String logoUrl;
 
+    // Imagen de fondo de la portada del catálogo en PDF (opcional). Sin
+    // ella, la portada usa el color oscuro fijo de siempre (ver
+    // CatalogoServiceImpl.dibujarPortada) — no es un rediseño del catálogo
+    // entero, solo la portada admite personalización.
+    @Column(name = "catalogo_portada_imagen_url")
+    private String catalogoPortadaImagenUrl;
+
+    // Toggles del catálogo en PDF, configurables por el dueño desde
+    // tienda-admin (ver CatalogoServiceImpl) — todos con default true salvo
+    // el título personalizado (null = usa el nombre de la empresa, de
+    // siempre).
+    @Column(name = "catalogo_mostrar_logo", nullable = false)
+    private boolean catalogoMostrarLogo = true;
+
+    @Column(name = "catalogo_titulo_personalizado")
+    private String catalogoTituloPersonalizado;
+
+    @Column(name = "catalogo_mostrar_descripcion", nullable = false)
+    private boolean catalogoMostrarDescripcion = true;
+
+    @Column(name = "catalogo_mostrar_colores", nullable = false)
+    private boolean catalogoMostrarColores = true;
+
+    // Color de fondo de las páginas de PRODUCTOS del catálogo (hex, ej.
+    // "#f7f3ec") — deliberadamente NUNCA una foto ahí (ver
+    // CatalogoServiceImpl): con tanto texto/precio por página, una imagen de
+    // fondo compromete la legibilidad. null = blanco de siempre.
+    @Column(name = "catalogo_color_fondo_productos", length = 9)
+    private String catalogoColorFondoProductos;
+
+    // Estilo GLOBAL del texto de las páginas "Importante" y "Cómo comprar"
+    // (decisión: un único estilo para toda la sección, no por bloque — ver
+    // CatalogoServiceImpl.agregarBloquesDeTexto). Los 3 quedan null juntos o
+    // cargados juntos: si no se personalizó nunca, caen a los defaults de
+    // siempre (Helvetica 10pt gris oscuro).
+    @Column(name = "catalogo_texto_fuente", length = 20)
+    private String catalogoTextoFuente;
+
+    @Column(name = "catalogo_texto_tamanio")
+    private Integer catalogoTextoTamanio;
+
+    @Column(name = "catalogo_texto_color", length = 9)
+    private String catalogoTextoColor;
+
     @Column(length = 60, unique = true)
     private String slug;
 
@@ -74,10 +118,9 @@ public class Empresa {
     private String tiendaFuente = "clasica";
 
     // Paleta de color de marca de la tienda pública. Valores válidos: "claro"
-    // (default), "oscuro", "negro-dorado", "marino-dorado", "ciruela-oliva"
-    // (ver styles.css/tienda-publica.css en el frontend para los tokens de
-    // cada uno). Mismo criterio que tiendaFuente: String simple, no enum,
-    // la lista cerrada la controla el <select> del frontend.
+    // (default), "oscuro" (ver styles.css/tienda-publica.css en el frontend
+    // para los tokens de cada uno). Mismo criterio que tiendaFuente: String
+    // simple, no enum, la lista cerrada la controla el <select> del frontend.
     @Column(name = "tienda_tema", nullable = false, length = 20)
     private String tiendaTema = "claro";
 
@@ -120,6 +163,25 @@ public class Empresa {
     @Column(name = "tienda_sobre_nosotros", columnDefinition = "TEXT")
     private String tiendaSobreNosotros;
 
+    // Barra de urgencia de la vidriera pública ("SOLO POR HOY..."), ahora
+    // configurable por el dueño en vez de datos de prueba fijos en el
+    // frontend (ver tienda-publica.ts, URGENCIA_DURACION_MS retirado). Los 4
+    // campos viajan juntos: la vidriera solo muestra la barra si
+    // tiendaOfertaActiva es true Y tiendaOfertaFechaFin es una fecha futura
+    // (ver PublicTiendaServiceImpl) — una fecha vencida oculta la barra sola,
+    // sin que el dueño tenga que desactivarla a mano.
+    @Column(name = "tienda_oferta_activa", nullable = false)
+    private boolean tiendaOfertaActiva = false;
+
+    @Column(name = "tienda_oferta_etiqueta", length = 60)
+    private String tiendaOfertaEtiqueta;
+
+    @Column(name = "tienda_oferta_texto", length = 150)
+    private String tiendaOfertaTexto;
+
+    @Column(name = "tienda_oferta_fecha_fin")
+    private LocalDateTime tiendaOfertaFechaFin;
+
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 
@@ -137,6 +199,33 @@ public class Empresa {
 
     public String getLogoUrl() { return logoUrl; }
     public void setLogoUrl(String logoUrl) { this.logoUrl = logoUrl; }
+
+    public String getCatalogoPortadaImagenUrl() { return catalogoPortadaImagenUrl; }
+    public void setCatalogoPortadaImagenUrl(String catalogoPortadaImagenUrl) { this.catalogoPortadaImagenUrl = catalogoPortadaImagenUrl; }
+
+    public boolean isCatalogoMostrarLogo() { return catalogoMostrarLogo; }
+    public void setCatalogoMostrarLogo(boolean catalogoMostrarLogo) { this.catalogoMostrarLogo = catalogoMostrarLogo; }
+
+    public String getCatalogoTituloPersonalizado() { return catalogoTituloPersonalizado; }
+    public void setCatalogoTituloPersonalizado(String catalogoTituloPersonalizado) { this.catalogoTituloPersonalizado = catalogoTituloPersonalizado; }
+
+    public boolean isCatalogoMostrarDescripcion() { return catalogoMostrarDescripcion; }
+    public void setCatalogoMostrarDescripcion(boolean catalogoMostrarDescripcion) { this.catalogoMostrarDescripcion = catalogoMostrarDescripcion; }
+
+    public boolean isCatalogoMostrarColores() { return catalogoMostrarColores; }
+    public void setCatalogoMostrarColores(boolean catalogoMostrarColores) { this.catalogoMostrarColores = catalogoMostrarColores; }
+
+    public String getCatalogoColorFondoProductos() { return catalogoColorFondoProductos; }
+    public void setCatalogoColorFondoProductos(String catalogoColorFondoProductos) { this.catalogoColorFondoProductos = catalogoColorFondoProductos; }
+
+    public String getCatalogoTextoFuente() { return catalogoTextoFuente; }
+    public void setCatalogoTextoFuente(String catalogoTextoFuente) { this.catalogoTextoFuente = catalogoTextoFuente; }
+
+    public Integer getCatalogoTextoTamanio() { return catalogoTextoTamanio; }
+    public void setCatalogoTextoTamanio(Integer catalogoTextoTamanio) { this.catalogoTextoTamanio = catalogoTextoTamanio; }
+
+    public String getCatalogoTextoColor() { return catalogoTextoColor; }
+    public void setCatalogoTextoColor(String catalogoTextoColor) { this.catalogoTextoColor = catalogoTextoColor; }
 
     public String getSlug() { return slug; }
     public void setSlug(String slug) { this.slug = slug; }
@@ -191,4 +280,16 @@ public class Empresa {
 
     public String getTiendaSobreNosotros() { return tiendaSobreNosotros; }
     public void setTiendaSobreNosotros(String tiendaSobreNosotros) { this.tiendaSobreNosotros = tiendaSobreNosotros; }
+
+    public boolean isTiendaOfertaActiva() { return tiendaOfertaActiva; }
+    public void setTiendaOfertaActiva(boolean tiendaOfertaActiva) { this.tiendaOfertaActiva = tiendaOfertaActiva; }
+
+    public String getTiendaOfertaEtiqueta() { return tiendaOfertaEtiqueta; }
+    public void setTiendaOfertaEtiqueta(String tiendaOfertaEtiqueta) { this.tiendaOfertaEtiqueta = tiendaOfertaEtiqueta; }
+
+    public String getTiendaOfertaTexto() { return tiendaOfertaTexto; }
+    public void setTiendaOfertaTexto(String tiendaOfertaTexto) { this.tiendaOfertaTexto = tiendaOfertaTexto; }
+
+    public LocalDateTime getTiendaOfertaFechaFin() { return tiendaOfertaFechaFin; }
+    public void setTiendaOfertaFechaFin(LocalDateTime tiendaOfertaFechaFin) { this.tiendaOfertaFechaFin = tiendaOfertaFechaFin; }
 }

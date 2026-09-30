@@ -51,19 +51,27 @@ public class Producto {
     @Column(name = "cantidad_minima_mayorista")
     private Integer cantidadMinimaMayorista;
 
+    // DEPRECADA junto con fotoUrl2/3/4 (ver comentario de abajo): el DTO
+    // sigue exponiendo un campo `fotoUrl` escalar, pero ahora es DERIVADO vía
+    // ProductoFotoResolver.resolverMiniatura(fotos), no esta columna.
     @Column(name = "foto_url", length = 255)
     private String fotoUrl;
 
-    // Slots fijos 2 y 3 de la galería del producto (no una tabla aparte con
-    // "orden": son a propósito 3 columnas fijas, ver ProductoServiceImpl.actualizarFoto
-    // y su parámetro slot). Se muestran solo en el detalle (admin y tienda
-    // pública), nunca en miniaturas de listado/grilla — ahí siempre se usa
-    // fotoUrl.
+    // DEPRECADAS (V43__producto_foto_pool.sql): reemplazadas por el pool
+    // unificado `fotos` de abajo. Se dejan existir en el esquema sin
+    // eliminarse (la migración es no destructiva a propósito, ver
+    // Migration/Rollout en el design) pero YA NO SE LEEN NI ESCRIBEN desde
+    // ningún camino de código nuevo — mismo criterio de "columna deprecada,
+    // no vale la pena una migración solo para borrarla" que
+    // ProductoVariante.precioVenta. El DROP queda diferido a una V44 futura.
     @Column(name = "foto_url_2", length = 255)
     private String fotoUrl2;
 
     @Column(name = "foto_url_3", length = 255)
     private String fotoUrl3;
+
+    @Column(name = "foto_url_4", length = 255)
+    private String fotoUrl4;
 
     @Column(nullable = false)
     private boolean activo = true;
@@ -80,10 +88,9 @@ public class Producto {
     @Column(nullable = false)
     private Integer stock = 0;
 
-    // Costo propio, opcional: análogo a `stock` de arriba — solo se usa
-    // cuando el producto no tiene receta de insumos (ver
-    // ProductoServiceImpl.costoEfectivo). Con receta, el costo sigue
-    // saliendo siempre de sumar el subtotal de cada línea de insumos.
+    // Costo propio de producir/comprar ESTE producto, opcional. Se suma
+    // siempre al costo de la receta de insumos (embalaje, stickers, etc.) —
+    // no es excluyente con ella (ver ProductoServiceImpl.costoEfectivo).
     @Column(name = "costo_unitario", precision = 12, scale = 2)
     private BigDecimal costoUnitario;
 
@@ -113,6 +120,28 @@ public class Producto {
     // grabado, no se muestra el selector en la tienda pública.
     @OneToMany(mappedBy = "producto", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     private List<ProductoGrabado> grabados = new ArrayList<>();
+
+    // Pool unificado de fotos (V43__producto_foto_pool.sql, reemplaza
+    // fotoUrl/2/3/4 de arriba): hasta 8 por producto, cada una con
+    // variante_id opcional (color). orphanRemoval=true: borrar una foto del
+    // form la borra físicamente de la fila, no soft-delete (mismo criterio
+    // que insumos/componentes/grabados, no como Producto que se da de baja
+    // lógica).
+    @OneToMany(mappedBy = "producto", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    private List<ProductoFoto> fotos = new ArrayList<>();
+
+    // Valores de atributo de filtro asignados a ESTE producto (ej. Material =
+    // "Acero"), a lo sumo uno por AtributoFiltro — ver AtributoFiltroValor.
+    // @ManyToMany simple (no entity de asociación propia): la única
+    // información de la fila es el par (producto, valor), no hace falta
+    // nada más ahí. Lista vacía = producto sin ningún atributo asignado,
+    // no aparece en ningún filtro custom de la tienda pública.
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+            name = "producto_atributo_valor",
+            joinColumns = @JoinColumn(name = "producto_id"),
+            inverseJoinColumns = @JoinColumn(name = "atributo_filtro_valor_id"))
+    private List<AtributoFiltroValor> atributoValores = new ArrayList<>();
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
@@ -150,6 +179,9 @@ public class Producto {
     public String getFotoUrl3() { return fotoUrl3; }
     public void setFotoUrl3(String fotoUrl3) { this.fotoUrl3 = fotoUrl3; }
 
+    public String getFotoUrl4() { return fotoUrl4; }
+    public void setFotoUrl4(String fotoUrl4) { this.fotoUrl4 = fotoUrl4; }
+
     public boolean isActivo() { return activo; }
     public void setActivo(boolean activo) { this.activo = activo; }
 
@@ -173,4 +205,10 @@ public class Producto {
 
     public List<ProductoGrabado> getGrabados() { return grabados; }
     public void setGrabados(List<ProductoGrabado> grabados) { this.grabados = grabados; }
+
+    public List<ProductoFoto> getFotos() { return fotos; }
+    public void setFotos(List<ProductoFoto> fotos) { this.fotos = fotos; }
+
+    public List<AtributoFiltroValor> getAtributoValores() { return atributoValores; }
+    public void setAtributoValores(List<AtributoFiltroValor> atributoValores) { this.atributoValores = atributoValores; }
 }

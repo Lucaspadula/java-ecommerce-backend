@@ -1,5 +1,6 @@
 package com.sistventas.backend.security;
 
+import com.sistventas.backend.entity.Cliente;
 import com.sistventas.backend.entity.Usuario;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtBuilder;
@@ -49,6 +50,25 @@ public class JwtService {
         }
 
         return builder.signWith(key).compact();
+    }
+
+    // Token de CUENTA DE CLIENTE (login en la tienda pública) — claim "tipo"
+    // explícito ("cliente") es lo que le permite a JwtAuthenticationFilter
+    // distinguirlo de un token de Usuario (panel/empresa), que nunca tiene
+    // ese claim. Nunca lleva rolEmpresa/esSuperAdmin: un cliente no tiene
+    // ningún rol de empresa.
+    public String generateTokenCliente(Cliente cliente) {
+        Date now = new Date();
+        Date expiry = new Date(now.getTime() + expirationMs);
+
+        return Jwts.builder()
+                .subject(String.valueOf(cliente.getId()))
+                .claim("tipo", "cliente")
+                .claim("empresaId", cliente.getEmpresaId())
+                .issuedAt(now)
+                .expiration(expiry)
+                .signWith(key)
+                .compact();
     }
 
     public Claims parseClaims(String token) {

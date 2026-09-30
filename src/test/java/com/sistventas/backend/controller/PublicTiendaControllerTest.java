@@ -1,5 +1,7 @@
 package com.sistventas.backend.controller;
 
+import com.sistventas.backend.dto.AtributoFiltroDto;
+import com.sistventas.backend.dto.AtributoFiltroValorDto;
 import com.sistventas.backend.dto.CategoriaTiendaDto;
 import com.sistventas.backend.dto.PreviewDescuentoComboDto;
 import com.sistventas.backend.dto.PreviewDescuentoComboRequest;
@@ -9,7 +11,6 @@ import com.sistventas.backend.dto.PublicPedidoItemRequest;
 import com.sistventas.backend.dto.PublicPedidoRequest;
 import com.sistventas.backend.dto.PublicPedidoResultadoDto;
 import com.sistventas.backend.dto.PublicProductoDto;
-import com.sistventas.backend.dto.PublicTestimonioDto;
 import com.sistventas.backend.dto.PublicTipDto;
 import com.sistventas.backend.dto.ResenaDto;
 import com.sistventas.backend.entity.EstadoVenta;
@@ -53,7 +54,8 @@ class PublicTiendaControllerTest {
     void obtenerEmpresaDevuelveOkConLaEmpresaDelService() {
         PublicEmpresaDto dto = new PublicEmpresaDto(
                 "Mi Empresa", null, null, null, null, List.of(), null, null, null,
-                "clasica", "claro", List.of(), null, null, null, null, null
+                "clasica", "claro", List.of(), null, null, null, null, null,
+                null, null, null
         );
         when(publicTiendaService.obtenerEmpresa(SLUG)).thenReturn(dto);
 
@@ -75,8 +77,8 @@ class PublicTiendaControllerTest {
     @Test
     void listarProductosDevuelveOkConLaListaDelService() {
         PublicProductoDto dto = new PublicProductoDto(
-                1L, "Mate", "Mate imperial", "Bebidas", 1L, null,
-                BigDecimal.TEN, null, null, null, 5, null, List.of(), List.of(), List.of()
+                1L, "Mate", "Mate imperial", "Bebidas", null, 1L, null,
+                BigDecimal.TEN, null, List.of(), 5, null, null, 0, List.of(), List.of(), List.of(), List.of()
         );
         when(publicTiendaService.listarProductos(SLUG)).thenReturn(List.of(dto));
 
@@ -101,7 +103,7 @@ class PublicTiendaControllerTest {
 
     @Test
     void listarResenasDevuelveOkConLaListaDelServiceParaElProductoIndicado() {
-        ResenaDto dto = new ResenaDto(1L, "Juan", "Excelente", LocalDateTime.now(), null);
+        ResenaDto dto = new ResenaDto(1L, "Juan", "Excelente", 5, LocalDateTime.now(), null, false);
         when(publicTiendaService.listarResenas(SLUG, 5L)).thenReturn(List.of(dto));
 
         ResponseEntity<List<ResenaDto>> respuesta = publicTiendaController.listarResenas(SLUG, 5L);
@@ -109,18 +111,6 @@ class PublicTiendaControllerTest {
         assertThat(respuesta.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(respuesta.getBody()).containsExactly(dto);
         verify(publicTiendaService).listarResenas(SLUG, 5L);
-    }
-
-    @Test
-    void listarTestimoniosDevuelveOkConLaListaDelService() {
-        PublicTestimonioDto dto = new PublicTestimonioDto("Juan", "Excelente", null, null);
-        when(publicTiendaService.listarTestimonios(SLUG)).thenReturn(List.of(dto));
-
-        ResponseEntity<List<PublicTestimonioDto>> respuesta = publicTiendaController.listarTestimonios(SLUG);
-
-        assertThat(respuesta.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(respuesta.getBody()).containsExactly(dto);
-        verify(publicTiendaService).listarTestimonios(SLUG);
     }
 
     @Test
@@ -187,5 +177,17 @@ class PublicTiendaControllerTest {
         assertThat(respuesta.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(respuesta.getBody()).isEqualTo(dto);
         verify(publicTiendaService).previewDescuentoCombo(SLUG, request);
+    }
+
+    @Test
+    void listarAtributosFiltroDevuelveOkConLaListaDelService() {
+        AtributoFiltroDto dto = new AtributoFiltroDto(1L, 7L, "Material", List.of(new AtributoFiltroValorDto(10L, "Acero")));
+        when(publicTiendaService.listarAtributosFiltro(SLUG, 7L)).thenReturn(List.of(dto));
+
+        ResponseEntity<List<AtributoFiltroDto>> respuesta = publicTiendaController.listarAtributosFiltro(SLUG, 7L);
+
+        assertThat(respuesta.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(respuesta.getBody()).containsExactly(dto);
+        verify(publicTiendaService).listarAtributosFiltro(SLUG, 7L);
     }
 }

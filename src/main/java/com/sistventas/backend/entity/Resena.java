@@ -9,11 +9,12 @@ import jakarta.persistence.Table;
 
 import java.time.LocalDateTime;
 
-// Testimonio de un cliente cargado a mano por el dueño desde el panel de
-// administración (ej. copia algo que le dijeron por WhatsApp) para mostrar
-// en la vidriera pública del producto. No es un sistema de reviews público:
-// no hay calificación por estrellas y no existe ningún endpoint de
-// escritura sin login — solo el dueño carga reseñas.
+// Reseña de un producto: cargada a mano por el dueño desde el panel de
+// administración (ventaId null, comentario obligatorio en ese flujo — ver
+// CrearResenaRequest), o dejada por un cliente real con compra verificada
+// (ventaId presente, sin login — ver PublicTiendaServiceImpl.crearResenaCliente,
+// que valida venta entregada + teléfono + que el producto esté en esa venta
+// antes de crearla).
 @Entity
 @Table(name = "resena")
 public class Resena {
@@ -31,8 +32,26 @@ public class Resena {
     @Column(name = "cliente_nombre", nullable = false, length = 150)
     private String clienteNombre;
 
-    @Column(nullable = false, length = 1000)
+    // Opcional: el cliente puede dejar solo la puntuación, sin texto. Las
+    // reseñas cargadas a mano por el admin siguen exigiendo comentario (ver
+    // CrearResenaRequest), pero a nivel columna ya no es NOT NULL.
+    @Column(length = 1000)
     private String comentario;
+
+    // 1 a 5. Default 5 a nivel columna (ver V50) para las reseñas viejas del
+    // admin que no tenían rating — nunca se muestra ese default como si el
+    // cliente lo hubiera elegido, porque el frontend solo pinta estrellas
+    // reales cuando la reseña vino del flujo de compra verificada (ventaId
+    // presente).
+    @Column(nullable = false)
+    private Integer puntuacion = 5;
+
+    // Null = reseña cargada a mano por el admin. Presente = reseña de un
+    // cliente con compra verificada, referencia a la Venta que la habilitó
+    // (usado para bloquear una segunda reseña de la misma compra — ver
+    // ResenaRepository.existsByVentaIdAndProductoId).
+    @Column(name = "venta_id")
+    private Long ventaId;
 
     @Column(nullable = false)
     private LocalDateTime fecha;
@@ -62,6 +81,12 @@ public class Resena {
 
     public LocalDateTime getFecha() { return fecha; }
     public void setFecha(LocalDateTime fecha) { this.fecha = fecha; }
+
+    public Integer getPuntuacion() { return puntuacion; }
+    public void setPuntuacion(Integer puntuacion) { this.puntuacion = puntuacion; }
+
+    public Long getVentaId() { return ventaId; }
+    public void setVentaId(Long ventaId) { this.ventaId = ventaId; }
 
     public String getImagenUrl() { return imagenUrl; }
     public void setImagenUrl(String imagenUrl) { this.imagenUrl = imagenUrl; }

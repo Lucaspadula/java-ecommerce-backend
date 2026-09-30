@@ -3,10 +3,13 @@ package com.sistventas.backend.controller;
 import com.sistventas.backend.dto.ActualizarProductoRequest;
 import com.sistventas.backend.dto.AjustePrecioCategoriaRequest;
 import com.sistventas.backend.dto.AjustePrecioCategoriaResultadoDto;
+import com.sistventas.backend.dto.AjustarFotoRequest;
+import com.sistventas.backend.dto.AsignarColorFotoRequest;
 import com.sistventas.backend.dto.CrearResenaRequest;
 import com.sistventas.backend.dto.FotoUploadDto;
 import com.sistventas.backend.dto.ProductoDto;
 import com.sistventas.backend.dto.ProductoRequest;
+import com.sistventas.backend.dto.ReordenarFotosRequest;
 import com.sistventas.backend.dto.ResenaDto;
 import com.sistventas.backend.dto.TipoAjustePrecio;
 import com.sistventas.backend.entity.RolEmpresa;
@@ -103,7 +106,7 @@ class ProductoControllerTest {
     @Test
     void actualizarDevuelveOkConElProductoActualizado() {
         ActualizarProductoRequest request = new ActualizarProductoRequest("Mate", 10L, null, null,
-                new BigDecimal("100.00"), null, null, null, null, null, null, null, null);
+                new BigDecimal("100.00"), null, null, null, null, null, null, null, null, null);
         ProductoDto dto = productoDto(5L, "Mate");
         when(productoService.actualizar(5L, request, principal)).thenReturn(dto);
 
@@ -124,28 +127,79 @@ class ProductoControllerTest {
     }
 
     @Test
-    void actualizarFotoDevuelveOkConElProductoActualizadoYDelegaElSlot() {
+    void agregarFotoDevuelveOkConElProductoActualizadoYDelegaElArchivoYLaVariante() {
         MultipartFile file = mock(MultipartFile.class);
         ProductoDto dto = productoDto(5L, "Mate");
-        when(productoService.actualizarFoto(5L, file, 2, principal)).thenReturn(dto);
+        when(productoService.agregarFoto(5L, file, 20L, principal)).thenReturn(dto);
 
-        ResponseEntity<ProductoDto> respuesta = productoController.actualizarFoto(5L, file, 2, principal);
+        ResponseEntity<ProductoDto> respuesta = productoController.agregarFoto(5L, file, 20L, principal);
 
         assertThat(respuesta.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(respuesta.getBody()).isEqualTo(dto);
-        verify(productoService).actualizarFoto(5L, file, 2, principal);
+        verify(productoService).agregarFoto(5L, file, 20L, principal);
     }
 
     @Test
-    void eliminarFotoDevuelveOkConElProductoActualizadoYDelegaElSlot() {
+    void agregarFotoSinVarianteIdDelegaConNull() {
+        MultipartFile file = mock(MultipartFile.class);
         ProductoDto dto = productoDto(5L, "Mate");
-        when(productoService.eliminarFoto(5L, 3, principal)).thenReturn(dto);
+        when(productoService.agregarFoto(5L, file, null, principal)).thenReturn(dto);
 
-        ResponseEntity<ProductoDto> respuesta = productoController.eliminarFoto(5L, 3, principal);
+        ResponseEntity<ProductoDto> respuesta = productoController.agregarFoto(5L, file, null, principal);
+
+        assertThat(respuesta.getStatusCode()).isEqualTo(HttpStatus.OK);
+        verify(productoService).agregarFoto(5L, file, null, principal);
+    }
+
+    @Test
+    void eliminarFotoDevuelveOkConElProductoActualizadoYDelegaElFotoId() {
+        ProductoDto dto = productoDto(5L, "Mate");
+        when(productoService.eliminarFoto(5L, 3L, principal)).thenReturn(dto);
+
+        ResponseEntity<ProductoDto> respuesta = productoController.eliminarFoto(5L, 3L, principal);
 
         assertThat(respuesta.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(respuesta.getBody()).isEqualTo(dto);
-        verify(productoService).eliminarFoto(5L, 3, principal);
+        verify(productoService).eliminarFoto(5L, 3L, principal);
+    }
+
+    @Test
+    void asignarColorFotoDevuelveOkYDelegaElVarianteIdDelBody() {
+        ProductoDto dto = productoDto(5L, "Mate");
+        AsignarColorFotoRequest request = new AsignarColorFotoRequest(20L);
+        when(productoService.asignarColorFoto(5L, 3L, 20L, principal)).thenReturn(dto);
+
+        ResponseEntity<ProductoDto> respuesta = productoController.asignarColorFoto(5L, 3L, request, principal);
+
+        assertThat(respuesta.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(respuesta.getBody()).isEqualTo(dto);
+        verify(productoService).asignarColorFoto(5L, 3L, 20L, principal);
+    }
+
+    @Test
+    void ajustarFotoDevuelveOkYDelegaElAgrandadaDelBody() {
+        ProductoDto dto = productoDto(5L, "Mate");
+        AjustarFotoRequest request = new AjustarFotoRequest(true);
+        when(productoService.ajustarFoto(5L, 3L, true, principal)).thenReturn(dto);
+
+        ResponseEntity<ProductoDto> respuesta = productoController.ajustarFoto(5L, 3L, request, principal);
+
+        assertThat(respuesta.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(respuesta.getBody()).isEqualTo(dto);
+        verify(productoService).ajustarFoto(5L, 3L, true, principal);
+    }
+
+    @Test
+    void reordenarFotosDevuelveOkYDelegaLaListaDeIdsDelBody() {
+        ProductoDto dto = productoDto(5L, "Mate");
+        ReordenarFotosRequest request = new ReordenarFotosRequest(List.of(3L, 1L, 2L));
+        when(productoService.reordenarFotos(5L, List.of(3L, 1L, 2L), principal)).thenReturn(dto);
+
+        ResponseEntity<ProductoDto> respuesta = productoController.reordenarFotos(5L, request, principal);
+
+        assertThat(respuesta.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(respuesta.getBody()).isEqualTo(dto);
+        verify(productoService).reordenarFotos(5L, List.of(3L, 1L, 2L), principal);
     }
 
     @Test
@@ -178,7 +232,7 @@ class ProductoControllerTest {
 
     @Test
     void listarResenasDevuelveOkConLaListaDelService() {
-        ResenaDto resena = new ResenaDto(1L, "Juana", "Excelente", null, null);
+        ResenaDto resena = new ResenaDto(1L, "Juana", "Excelente", 5, null, null, false);
         when(productoService.listarResenas(5L, principal)).thenReturn(List.of(resena));
 
         ResponseEntity<List<ResenaDto>> respuesta = productoController.listarResenas(5L, principal);
@@ -191,7 +245,7 @@ class ProductoControllerTest {
     @Test
     void crearResenaDevuelveCreatedConLaResenaCreada() {
         CrearResenaRequest request = new CrearResenaRequest("Juana", "Excelente producto");
-        ResenaDto resena = new ResenaDto(1L, "Juana", "Excelente producto", null, null);
+        ResenaDto resena = new ResenaDto(1L, "Juana", "Excelente producto", 5, null, null, false);
         when(productoService.crearResena(5L, request, principal)).thenReturn(resena);
 
         ResponseEntity<ResenaDto> respuesta = productoController.crearResena(5L, request, principal);
@@ -213,7 +267,7 @@ class ProductoControllerTest {
     @Test
     void actualizarFotoResenaDevuelveOkConLaResenaActualizada() {
         MultipartFile file = mock(MultipartFile.class);
-        ResenaDto resena = new ResenaDto(1L, "Juana", "Excelente", null, "/uploads/resenas/foto.jpg");
+        ResenaDto resena = new ResenaDto(1L, "Juana", "Excelente", 5, null, "/uploads/resenas/foto.jpg", false);
         when(productoService.actualizarFotoResena(5L, 1L, file, principal)).thenReturn(resena);
 
         ResponseEntity<ResenaDto> respuesta = productoController.actualizarFotoResena(5L, 1L, file, principal);
@@ -256,11 +310,11 @@ class ProductoControllerTest {
 
     private ProductoDto productoDto(Long id, String nombre) {
         return new ProductoDto(id, nombre, "General", null, null, new BigDecimal("100.00"), null, null,
-                null, null, null, 0, BigDecimal.ZERO, List.of(), List.of(), List.of(), List.of());
+                null, List.of(), 0, BigDecimal.ZERO, BigDecimal.ZERO, List.of(), List.of(), List.of(), List.of(), List.of());
     }
 
     private ProductoRequest productoRequest(String nombre) {
         return new ProductoRequest(nombre, 10L, null, null, new BigDecimal("100.00"), null, null,
-                null, null, null, null, null, null);
+                null, null, null, null, null, null, null);
     }
 }

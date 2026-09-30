@@ -31,6 +31,18 @@ public class Cliente {
     @Column(columnDefinition = "TEXT")
     private String notas;
 
+    // Cuenta de cliente (login en la tienda pública): ambos null = Cliente
+    // creado solo por una venta de invitado (ver
+    // PublicTiendaServiceImpl.resolverCliente), sin cuenta todavía. Nunca
+    // los dos a la vez tienen sentido juntos salvo que el cliente haya
+    // vinculado Google DESPUÉS de registrarse con contraseña (mismo criterio
+    // que Usuario.googleSub para el panel admin).
+    @Column(name = "password_hash")
+    private String passwordHash;
+
+    @Column(name = "google_sub")
+    private String googleSub;
+
     @Column(nullable = false)
     private boolean activo = true;
 
@@ -60,4 +72,10 @@ public class Cliente {
 
     public LocalDateTime getFechaAlta() { return fechaAlta; }
     public void setFechaAlta(LocalDateTime fechaAlta) { this.fechaAlta = fechaAlta; }
+
+    public String getPasswordHash() { return passwordHash; }
+    public void setPasswordHash(String passwordHash) { this.passwordHash = passwordHash; }
+
+    public String getGoogleSub() { return googleSub; }
+    public void setGoogleSub(String googleSub) { this.googleSub = googleSub; }
 }

@@ -67,7 +67,7 @@ class CategoriaControllerTest {
 
     @Test
     void listarSubcategoriasDevuelveOkConLaListaDelService() {
-        SubcategoriaDto dto = new SubcategoriaDto(2L, "Gaseosas");
+        SubcategoriaDto dto = new SubcategoriaDto(2L, "Gaseosas", null);
         when(categoriaService.listarSubcategorias(1L, principal)).thenReturn(List.of(dto));
 
         ResponseEntity<List<SubcategoriaDto>> respuesta = categoriaController.listarSubcategorias(1L, principal);
@@ -89,7 +89,7 @@ class CategoriaControllerTest {
     @Test
     void crearSubcategoriaDevuelveCreatedConLaSubcategoriaCreada() {
         CrearSubcategoriaRequest request = new CrearSubcategoriaRequest("Gaseosas");
-        SubcategoriaDto dto = new SubcategoriaDto(3L, "Gaseosas");
+        SubcategoriaDto dto = new SubcategoriaDto(3L, "Gaseosas", null);
         when(categoriaService.crearSubcategoria(1L, request, principal)).thenReturn(dto);
 
         ResponseEntity<SubcategoriaDto> respuesta = categoriaController.crearSubcategoria(1L, request, principal);
