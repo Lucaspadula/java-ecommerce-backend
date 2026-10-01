@@ -135,6 +135,8 @@ public class PublicTiendaServiceImpl implements PublicTiendaService {
     private final JwtService jwtService;
     private final PasswordEncoder passwordEncoder;
     private final GoogleTokenVerifier googleTokenVerifier;
+    private final com.sistventas.backend.repository.TiendaBloqueRepository tiendaBloqueRepository;
+    private final com.sistventas.backend.repository.TiendaBloqueCardRepository tiendaBloqueCardRepository;
 
     public PublicTiendaServiceImpl(EmpresaRepository empresaRepository,
                                     ProductoRepository productoRepository,
@@ -156,7 +158,11 @@ public class PublicTiendaServiceImpl implements PublicTiendaService {
                                     ProductoFotoResolver productoFotoResolver,
                                     JwtService jwtService,
                                     PasswordEncoder passwordEncoder,
-                                    GoogleTokenVerifier googleTokenVerifier) {
+                                    GoogleTokenVerifier googleTokenVerifier,
+                                    com.sistventas.backend.repository.TiendaBloqueRepository tiendaBloqueRepository,
+                                    com.sistventas.backend.repository.TiendaBloqueCardRepository tiendaBloqueCardRepository) {
+        this.tiendaBloqueRepository = tiendaBloqueRepository;
+        this.tiendaBloqueCardRepository = tiendaBloqueCardRepository;
         this.empresaRepository = empresaRepository;
         this.productoRepository = productoRepository;
         this.clienteRepository = clienteRepository;
@@ -545,6 +551,87 @@ public class PublicTiendaServiceImpl implements PublicTiendaService {
         return tiendaTipRepository.findByEmpresaIdOrderByOrdenAscIdAsc(empresa.getId()).stream()
                 .map(t -> new PublicTipDto(t.getTitulo(), t.getContenido(), t.getFotoUrl()))
                 .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<com.sistventas.backend.dto.PublicTiendaBloqueDto> listarBloques(String slug) {
+        Empresa empresa = resolverEmpresa(slug);
+        Long empresaId = empresa.getId();
+        List<com.sistventas.backend.entity.TiendaBloque> bloques =
+                tiendaBloqueRepository.findByEmpresaIdAndActivoTrueOrderBySlotAscOrdenAscIdAsc(empresaId);
+        if (bloques.isEmpty()) {
+            return List.of();
+        }
+
+        // Una query de bloques + una de cards; los destinos PRODUCTO/CATEGORIA
+        // se resuelven en lote (una query por tipo), nunca por card.
+        List<Long> bloqueIds = bloques.stream().map(com.sistventas.backend.entity.TiendaBloque::getId).toList();
+        List<com.sistventas.backend.entity.TiendaBloqueCard> cards =
+                tiendaBloqueCardRepository.findByBloqueIdInOrderByOrdenAscIdAsc(bloqueIds);
+
+        java.util.Set<Long> productoIds = idsDeAccion(cards, "PRODUCTO");
+        java.util.Set<Long> categoriaIds = idsDeAccion(cards, "CATEGORIA");
+        // Solo cuentan los de ESTA empresa: una referencia ajena o borrada baja a NINGUNA.
+        java.util.Set<Long> productosValidos = productoIds.isEmpty() ? java.util.Set.of()
+                : productoRepository.findAllById(productoIds).stream()
+                        .filter(p -> empresaId.equals(p.getEmpresaId()))
+                        .map(Producto::getId)
+                        .collect(java.util.stream.Collectors.toSet());
+        java.util.Map<Long, String> nombreCategoria = categoriaIds.isEmpty() ? java.util.Map.of()
+                : categoriaRepository.findAllById(categoriaIds).stream()
+                        .filter(c -> empresaId.equals(c.getEmpresaId()))
+                        .collect(java.util.stream.Collectors.toMap(Categoria::getId, Categoria::getNombre));
+
+        java.util.Map<Long, List<com.sistventas.backend.dto.PublicTiendaBloqueCardDto>> cardsPorBloque = new java.util.HashMap<>();
+        for (com.sistventas.backend.entity.TiendaBloqueCard card : cards) {
+            String accion = card.getAccion();
+            String destino = null;
+            switch (accion) {
+                case "URL" -> destino = card.getAccionValor();
+                case "PRODUCTO" -> {
+                    Long id = parsearIdONull(card.getAccionValor());
+                    destino = id != null && productosValidos.contains(id) ? String.valueOf(id) : null;
+                }
+                case "CATEGORIA" -> {
+                    Long id = parsearIdONull(card.getAccionValor());
+                    destino = id != null ? nombreCategoria.get(id) : null;
+                }
+                default -> { }
+            }
+            if (("URL".equals(accion) || "PRODUCTO".equals(accion) || "CATEGORIA".equals(accion)) && destino == null) {
+                accion = "NINGUNA";
+            }
+            cardsPorBloque.computeIfAbsent(card.getBloqueId(), k -> new java.util.ArrayList<>())
+                    .add(new com.sistventas.backend.dto.PublicTiendaBloqueCardDto(card.getId(), card.getImagenUrl(),
+                            card.getOrientacion(), card.getTitulo(), card.getTexto(), accion, destino));
+        }
+
+        return bloques.stream()
+                .map(b -> new com.sistventas.backend.dto.PublicTiendaBloqueDto(b.getId(), b.getTitulo(), b.getSlot(),
+                        b.getAncho(), cardsPorBloque.getOrDefault(b.getId(), List.of())))
+                .toList();
+    }
+
+    private java.util.Set<Long> idsDeAccion(List<com.sistventas.backend.entity.TiendaBloqueCard> cards, String accion) {
+        java.util.Set<Long> ids = new java.util.HashSet<>();
+        for (com.sistventas.backend.entity.TiendaBloqueCard c : cards) {
+            if (accion.equals(c.getAccion())) {
+                Long id = parsearIdONull(c.getAccionValor());
+                if (id != null) {
+                    ids.add(id);
+                }
+            }
+        }
+        return ids;
+    }
+
+    private Long parsearIdONull(String valor) {
+        try {
+            return valor == null ? null : Long.valueOf(valor.trim());
+        } catch (NumberFormatException ex) {
+            return null;
+        }
     }
 
     @Override

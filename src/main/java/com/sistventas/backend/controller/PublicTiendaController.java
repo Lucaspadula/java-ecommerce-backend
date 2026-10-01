@@ -143,6 +143,11 @@ public class PublicTiendaController {
         return ResponseEntity.ok(publicTiendaService.listarTips(slug));
     }
 
+    @GetMapping("/{slug}/bloques")
+    public ResponseEntity<List<com.sistventas.backend.dto.PublicTiendaBloqueDto>> listarBloques(@PathVariable String slug) {
+        return ResponseEntity.ok(publicTiendaService.listarBloques(slug));
+    }
+
     @PostMapping("/{slug}/pedidos")
     public ResponseEntity<PublicPedidoResultadoDto> crearPedido(
             @PathVariable String slug,

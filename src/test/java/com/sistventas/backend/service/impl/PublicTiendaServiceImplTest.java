@@ -162,8 +162,123 @@ class PublicTiendaServiceImplTest {
     @Mock
     private GoogleTokenVerifier googleTokenVerifier;
 
+    @Mock
+    private com.sistventas.backend.repository.TiendaBloqueRepository tiendaBloqueRepository;
+
+    @Mock
+    private com.sistventas.backend.repository.TiendaBloqueCardRepository tiendaBloqueCardRepository;
+
     @InjectMocks
     private PublicTiendaServiceImpl publicTiendaService;
+
+    // --- listarBloques (bloques-tienda): solo activos, orden, destino resuelto, sin N+1 ---
+
+    @Test
+    void listarBloquesDevuelveSoloLosActivosEnElOrdenDelRepositoryConSusCardsOrdenadas() {
+        when(empresaRepository.findBySlugAndTiendaHabilitadaTrue(SLUG)).thenReturn(Optional.of(empresa()));
+        com.sistventas.backend.entity.TiendaBloque b0 = bloque(1L, "HOME_ANTES_FOOTER", 0);
+        com.sistventas.backend.entity.TiendaBloque b1 = bloque(2L, "HOME_ANTES_FOOTER", 1);
+        when(tiendaBloqueRepository.findByEmpresaIdAndActivoTrueOrderBySlotAscOrdenAscIdAsc(EMPRESA_ID))
+                .thenReturn(List.of(b0, b1));
+        when(tiendaBloqueCardRepository.findByBloqueIdInOrderByOrdenAscIdAsc(List.of(1L, 2L)))
+                .thenReturn(List.of(cardBloque(10L, 1L, "NINGUNA", null), cardBloque(11L, 1L, "NINGUNA", null),
+                        cardBloque(12L, 2L, "NINGUNA", null)));
+
+        List<com.sistventas.backend.dto.PublicTiendaBloqueDto> resultado = publicTiendaService.listarBloques(SLUG);
+
+        assertThat(resultado).extracting(com.sistventas.backend.dto.PublicTiendaBloqueDto::id).containsExactly(1L, 2L);
+        assertThat(resultado.get(0).cards()).extracting(com.sistventas.backend.dto.PublicTiendaBloqueCardDto::id)
+                .containsExactly(10L, 11L);
+        assertThat(resultado.get(1).cards()).hasSize(1);
+        // Una query de bloques y una de cards, sin N+1.
+        verify(tiendaBloqueCardRepository).findByBloqueIdInOrderByOrdenAscIdAsc(List.of(1L, 2L));
+    }
+
+    @Test
+    void listarBloquesSinBloquesActivosDevuelveListaVaciaSinConsultarCards() {
+        when(empresaRepository.findBySlugAndTiendaHabilitadaTrue(SLUG)).thenReturn(Optional.of(empresa()));
+        when(tiendaBloqueRepository.findByEmpresaIdAndActivoTrueOrderBySlotAscOrdenAscIdAsc(EMPRESA_ID))
+                .thenReturn(List.of());
+
+        assertThat(publicTiendaService.listarBloques(SLUG)).isEmpty();
+        verify(tiendaBloqueCardRepository, never()).findByBloqueIdInOrderByOrdenAscIdAsc(any());
+    }
+
+    @Test
+    void listarBloquesResuelveDestinoDeCategoriaPorNombreYProductoPorId() {
+        when(empresaRepository.findBySlugAndTiendaHabilitadaTrue(SLUG)).thenReturn(Optional.of(empresa()));
+        when(tiendaBloqueRepository.findByEmpresaIdAndActivoTrueOrderBySlotAscOrdenAscIdAsc(EMPRESA_ID))
+                .thenReturn(List.of(bloque(1L, "HOME_ANTES_FOOTER", 0)));
+        when(tiendaBloqueCardRepository.findByBloqueIdInOrderByOrdenAscIdAsc(List.of(1L))).thenReturn(List.of(
+                cardBloque(10L, 1L, "CATEGORIA", "4"),
+                cardBloque(11L, 1L, "PRODUCTO", "7"),
+                cardBloque(12L, 1L, "URL", "https://ejemplo.com"),
+                cardBloque(13L, 1L, "MODAL", null)));
+        Categoria cat = new Categoria();
+        cat.setId(4L);
+        cat.setEmpresaId(EMPRESA_ID);
+        cat.setNombre("Mates");
+        Producto prod = new Producto();
+        prod.setId(7L);
+        prod.setEmpresaId(EMPRESA_ID);
+        when(categoriaRepository.findAllById(any())).thenReturn(List.of(cat));
+        when(productoRepository.findAllById(any())).thenReturn(List.of(prod));
+
+        var cards = publicTiendaService.listarBloques(SLUG).get(0).cards();
+
+        assertThat(cards.get(0).accion()).isEqualTo("CATEGORIA");
+        assertThat(cards.get(0).destino()).isEqualTo("Mates");
+        assertThat(cards.get(1).accion()).isEqualTo("PRODUCTO");
+        assertThat(cards.get(1).destino()).isEqualTo("7");
+        assertThat(cards.get(2).destino()).isEqualTo("https://ejemplo.com");
+        assertThat(cards.get(3).accion()).isEqualTo("MODAL");
+        assertThat(cards.get(3).destino()).isNull();
+    }
+
+    @Test
+    void listarBloquesBajaANingunaSiLaReferenciaYaNoExisteOEsDeOtraEmpresa() {
+        when(empresaRepository.findBySlugAndTiendaHabilitadaTrue(SLUG)).thenReturn(Optional.of(empresa()));
+        when(tiendaBloqueRepository.findByEmpresaIdAndActivoTrueOrderBySlotAscOrdenAscIdAsc(EMPRESA_ID))
+                .thenReturn(List.of(bloque(1L, "HOME_ANTES_FOOTER", 0)));
+        when(tiendaBloqueCardRepository.findByBloqueIdInOrderByOrdenAscIdAsc(List.of(1L))).thenReturn(List.of(
+                cardBloque(10L, 1L, "CATEGORIA", "4"),
+                cardBloque(11L, 1L, "PRODUCTO", "7")));
+        Categoria ajena = new Categoria();
+        ajena.setId(4L);
+        ajena.setEmpresaId(999L);
+        ajena.setNombre("Ajena");
+        when(categoriaRepository.findAllById(any())).thenReturn(List.of(ajena));
+        when(productoRepository.findAllById(any())).thenReturn(List.of());
+
+        var cards = publicTiendaService.listarBloques(SLUG).get(0).cards();
+
+        assertThat(cards.get(0).accion()).isEqualTo("NINGUNA");
+        assertThat(cards.get(0).destino()).isNull();
+        assertThat(cards.get(1).accion()).isEqualTo("NINGUNA");
+        assertThat(cards.get(1).destino()).isNull();
+    }
+
+    private com.sistventas.backend.entity.TiendaBloque bloque(Long id, String slot, int orden) {
+        com.sistventas.backend.entity.TiendaBloque b = new com.sistventas.backend.entity.TiendaBloque();
+        b.setId(id);
+        b.setEmpresaId(EMPRESA_ID);
+        b.setSlot(slot);
+        b.setAncho("COMPLETO");
+        b.setOrden(orden);
+        b.setActivo(true);
+        return b;
+    }
+
+    private com.sistventas.backend.entity.TiendaBloqueCard cardBloque(Long id, Long bloqueId, String accion, String valor) {
+        com.sistventas.backend.entity.TiendaBloqueCard c = new com.sistventas.backend.entity.TiendaBloqueCard();
+        c.setId(id);
+        c.setBloqueId(bloqueId);
+        c.setImagenUrl("/uploads/bloques/x.jpg");
+        c.setOrientacion("VERTICAL");
+        c.setAccion(accion);
+        c.setAccionValor(valor);
+        return c;
+    }
 
     @Test
     void obtenerEmpresaExponeTiendaFuenteYTiendaTemaDeLaEmpresa() {
@@ -1075,7 +1190,8 @@ class PublicTiendaServiceImplTest {
                 atributoFiltroRepository, atributoFiltroValorRepository,
                 tiendaBannerImagenRepository, resenaRepository, tiendaTipRepository,
                 stockDisponibleCalculator, reglaDescuentoComboRepository, calculadorDescuentoComboService,
-                imagenUploadValidator, new ProductoFotoResolver(), jwtService, passwordEncoder, googleTokenVerifier);
+                imagenUploadValidator, new ProductoFotoResolver(), jwtService, passwordEncoder, googleTokenVerifier,
+                tiendaBloqueRepository, tiendaBloqueCardRepository);
     }
 
     private ProductoFoto foto(Producto producto, Long id, Long varianteId, String url, int orden) {

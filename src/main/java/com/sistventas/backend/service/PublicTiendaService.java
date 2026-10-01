@@ -71,6 +71,10 @@ public interface PublicTiendaService {
     // testimonios, cargados a mano por el dueño desde el panel admin.
     List<PublicTipDto> listarTips(String slug);
 
+    // Bloques configurables ACTIVOS de la tienda, ordenados por slot y orden,
+    // con sus cards ordenadas y el destino de cada acción ya resuelto.
+    List<com.sistventas.backend.dto.PublicTiendaBloqueDto> listarBloques(String slug);
+
     // Solo las categorías reales de productos activos que además tienen
     // color y/o imagen configurados (ver TiendaCategoriaServiceImpl para el
     // endpoint de administración, que sí devuelve TODAS las categorías
