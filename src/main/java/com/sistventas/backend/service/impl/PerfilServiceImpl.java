@@ -39,7 +39,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
-import java.util.Set;
 import java.util.UUID;
 
 @Service
@@ -57,10 +56,6 @@ public class PerfilServiceImpl implements PerfilService {
     // rotación automática — más imágenes ahí no compite por atención de la
     // misma forma.
     private static final int MAX_BANNER_VERTICAL_IMAGENES = 12;
-
-    // Disposiciones válidas de la sección "Cuidá tu mate" (ver
-    // Empresa.tiendaTipsLayout); cualquier otro valor cae a "vertical-1".
-    private static final Set<String> TIPS_LAYOUTS_VALIDOS = Set.of("vertical-1", "vertical-2", "horizontal");
 
     private static final String TIPO_BANNER_HERO = "HERO";
     private static final String TIPO_BANNER_VERTICAL = "VERTICAL";
@@ -197,11 +192,6 @@ public class PerfilServiceImpl implements PerfilService {
         empresa.setTiendaFuente(fuente != null ? fuente : "clasica");
         String tema = vacioComoNull(request.tiendaTema());
         empresa.setTiendaTema(tema != null ? tema : "claro");
-        // Valor desconocido o vacío cae al default, así nunca se persiste una
-        // disposición que el frontend no sepa dibujar.
-        String tipsLayout = vacioComoNull(request.tiendaTipsLayout());
-        empresa.setTiendaTipsLayout(
-                tipsLayout != null && TIPS_LAYOUTS_VALIDOS.contains(tipsLayout) ? tipsLayout : "vertical-1");
         empresa.setTiendaBannerVerticalPosicion(vacioComoNull(request.tiendaBannerVerticalPosicion()));
         empresa.setTiendaRazonSocial(vacioComoNull(request.tiendaRazonSocial()));
         empresa.setTiendaCuit(vacioComoNull(request.tiendaCuit()));
@@ -406,7 +396,6 @@ public class PerfilServiceImpl implements PerfilService {
                 empresa != null ? empresa.getTiendaCuponPorcentaje() : null,
                 empresa != null ? empresa.getTiendaFuente() : null,
                 empresa != null ? empresa.getTiendaTema() : null,
-                empresa != null ? empresa.getTiendaTipsLayout() : null,
                 empresa != null ? empresa.getTiendaBannerVerticalPosicion() : null,
                 empresa != null ? empresa.getTiendaRazonSocial() : null,
                 empresa != null ? empresa.getTiendaCuit() : null,
