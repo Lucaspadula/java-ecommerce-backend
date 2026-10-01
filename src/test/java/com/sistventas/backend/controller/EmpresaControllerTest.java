@@ -369,7 +369,7 @@ class EmpresaControllerTest {
                 99L, "Lucas", "lucas@test.com", RolEmpresa.ADMIN, "Mi Empresa", false,
                 "logo-url", "mi-empresa", true,
                 null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null,
                 false, null, null, null,
                 false, null, true, null, true, true, null, null, null, null
         );
@@ -378,7 +378,7 @@ class EmpresaControllerTest {
     private ActualizarTiendaRequest tiendaRequest() {
         return new ActualizarTiendaRequest(
                 "mi-tienda", true, null, null, null, null, null, null, null, null,
-                "clasica", "claro", null, null, null, null, null,
+                "clasica", "claro", null, null, null, null, null, null,
                 false, null, null, null
         );
     }

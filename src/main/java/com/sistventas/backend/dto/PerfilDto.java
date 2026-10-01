@@ -25,6 +25,7 @@ public record PerfilDto(
         BigDecimal tiendaCuponPorcentaje,
         String tiendaFuente,
         String tiendaTema,
+        String tiendaTipsLayout,
         String tiendaBannerVerticalPosicion,
         String tiendaRazonSocial,
         String tiendaCuit,

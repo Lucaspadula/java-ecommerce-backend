@@ -209,6 +209,7 @@ public class PublicTiendaServiceImpl implements PublicTiendaService {
                 empresa.getTiendaContactoEmail(),
                 empresa.getTiendaFuente(),
                 empresa.getTiendaTema(),
+                empresa.getTiendaTipsLayout(),
                 bannerVerticales,
                 empresa.getTiendaBannerVerticalPosicion(),
                 empresa.getTiendaRazonSocial(),

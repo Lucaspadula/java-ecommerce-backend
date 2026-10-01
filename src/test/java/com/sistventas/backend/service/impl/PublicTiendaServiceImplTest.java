@@ -181,6 +181,20 @@ class PublicTiendaServiceImplTest {
     }
 
     @Test
+    void obtenerEmpresaExponeTiendaTipsLayoutDeLaEmpresaYPorDefectoVertical1() {
+        Empresa empresa = empresa();
+        when(empresaRepository.findBySlugAndTiendaHabilitadaTrue(SLUG)).thenReturn(Optional.of(empresa));
+        when(tiendaBannerImagenRepository.findByEmpresaIdAndTipoOrderByOrden(EMPRESA_ID, "HERO")).thenReturn(List.of());
+        when(tiendaBannerImagenRepository.findByEmpresaIdAndTipoOrderByOrden(EMPRESA_ID, "VERTICAL")).thenReturn(List.of());
+
+        assertThat(publicTiendaService.obtenerEmpresa(SLUG).tiendaTipsLayout()).isEqualTo("vertical-1");
+
+        empresa.setTiendaTipsLayout("horizontal");
+
+        assertThat(publicTiendaService.obtenerEmpresa(SLUG).tiendaTipsLayout()).isEqualTo("horizontal");
+    }
+
+    @Test
     void obtenerEmpresaConSlugNoEncontradoLanzaTiendaNoEncontradaException() {
         when(empresaRepository.findBySlugAndTiendaHabilitadaTrue(SLUG)).thenReturn(Optional.empty());
 

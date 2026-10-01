@@ -127,6 +127,32 @@ class PerfilServiceImplTest {
     }
 
     @Test
+    void actualizarTiendaConTipsLayoutValidoLoPersistaYLoReflejaEnElDto() {
+        Empresa empresa = empresa();
+        prepararEmpresaYUsuario(empresa);
+        when(empresaRepository.findBySlug("mi-tienda")).thenReturn(Optional.empty());
+
+        PerfilDto resultado = perfilService.actualizarTienda(request("mi-tienda", null, null, "horizontal"), principal);
+
+        assertThat(empresa.getTiendaTipsLayout()).isEqualTo("horizontal");
+        assertThat(resultado.tiendaTipsLayout()).isEqualTo("horizontal");
+    }
+
+    @Test
+    void actualizarTiendaConTipsLayoutNuloVacioODesconocidoCaeAlDefault() {
+        for (String valor : new String[] {null, "", "   ", "diagonal"}) {
+            Empresa empresa = empresa();
+            prepararEmpresaYUsuario(empresa);
+            when(empresaRepository.findBySlug("mi-tienda")).thenReturn(Optional.empty());
+
+            PerfilDto resultado = perfilService.actualizarTienda(request("mi-tienda", null, null, valor), principal);
+
+            assertThat(empresa.getTiendaTipsLayout()).isEqualTo("vertical-1");
+            assertThat(resultado.tiendaTipsLayout()).isEqualTo("vertical-1");
+        }
+    }
+
+    @Test
     void actualizarTiendaConSlugYaUsadoPorOtraEmpresaLanzaSlugEnUsoException() {
         Empresa otraEmpresa = empresa();
         otraEmpresa.setId(999L);
@@ -595,6 +621,10 @@ class PerfilServiceImplTest {
     }
 
     private ActualizarTiendaRequest request(String slug, String tiendaFuente, String tiendaTema) {
+        return request(slug, tiendaFuente, tiendaTema, null);
+    }
+
+    private ActualizarTiendaRequest request(String slug, String tiendaFuente, String tiendaTema, String tiendaTipsLayout) {
         return new ActualizarTiendaRequest(
                 slug,
                 true,
@@ -608,6 +638,7 @@ class PerfilServiceImplTest {
                 null,
                 tiendaFuente,
                 tiendaTema,
+                tiendaTipsLayout,
                 null,
                 null,
                 null,

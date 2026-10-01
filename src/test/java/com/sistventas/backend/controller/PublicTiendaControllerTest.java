@@ -54,7 +54,7 @@ class PublicTiendaControllerTest {
     void obtenerEmpresaDevuelveOkConLaEmpresaDelService() {
         PublicEmpresaDto dto = new PublicEmpresaDto(
                 "Mi Empresa", null, null, null, null, List.of(), null, null, null,
-                "clasica", "claro", List.of(), null, null, null, null, null,
+                "clasica", "claro", "vertical-1", List.of(), null, null, null, null, null,
                 null, null, null
         );
         when(publicTiendaService.obtenerEmpresa(SLUG)).thenReturn(dto);

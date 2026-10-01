@@ -124,6 +124,12 @@ public class Empresa {
     @Column(name = "tienda_tema", nullable = false, length = 20)
     private String tiendaTema = "claro";
 
+    // Disposición de la sección "Cuidá tu mate" de la tienda pública. Valores
+    // válidos: "vertical-1" (default), "vertical-2", "horizontal". Mismo
+    // criterio que tiendaTema: String simple, no enum.
+    @Column(name = "tienda_tips_layout", nullable = false, length = 20)
+    private String tiendaTipsLayout = "vertical-1";
+
     // Key propia de Gemini para generar la descripción sugerida con IA
     // (Productos > lápiz sobre la foto > "Generar con IA"). Nullable a
     // propósito: sin key propia, DescripcionIaServiceImpl cae a
@@ -262,6 +268,8 @@ public class Empresa {
 
     public String getTiendaTema() { return tiendaTema; }
     public void setTiendaTema(String tiendaTema) { this.tiendaTema = tiendaTema; }
+    public String getTiendaTipsLayout() { return tiendaTipsLayout; }
+    public void setTiendaTipsLayout(String tiendaTipsLayout) { this.tiendaTipsLayout = tiendaTipsLayout; }
 
     public String getGeminiApiKey() { return geminiApiKey; }
     public void setGeminiApiKey(String geminiApiKey) { this.geminiApiKey = geminiApiKey; }

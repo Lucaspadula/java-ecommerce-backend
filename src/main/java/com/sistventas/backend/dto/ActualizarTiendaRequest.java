@@ -59,6 +59,12 @@ public record ActualizarTiendaRequest(
         @Size(max = 20, message = "El tema no puede superar los 20 caracteres")
         String tiendaTema,
 
+        // Opcional: si viene null/vacío o con un valor desconocido, se guarda
+        // "vertical-1" (ver PerfilServiceImpl.actualizarTienda). Valores
+        // válidos: "vertical-1", "vertical-2", "horizontal".
+        @Size(max = 20, message = "La disposición de los tips no puede superar los 20 caracteres")
+        String tiendaTipsLayout,
+
         // Opcional: null = sección de banners verticales sin ubicación
         // configurada, no se muestra en la tienda pública aunque haya
         // imágenes cargadas. La lista de 4 valores válidos la controla el
