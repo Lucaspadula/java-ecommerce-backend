@@ -11,7 +11,6 @@ import com.sistventas.backend.dto.PublicPedidoItemRequest;
 import com.sistventas.backend.dto.PublicPedidoRequest;
 import com.sistventas.backend.dto.PublicPedidoResultadoDto;
 import com.sistventas.backend.dto.PublicProductoDto;
-import com.sistventas.backend.dto.PublicTipDto;
 import com.sistventas.backend.dto.ResenaDto;
 import com.sistventas.backend.entity.EstadoVenta;
 import com.sistventas.backend.exception.TiendaNoEncontradaException;
@@ -54,7 +53,7 @@ class PublicTiendaControllerTest {
     void obtenerEmpresaDevuelveOkConLaEmpresaDelService() {
         PublicEmpresaDto dto = new PublicEmpresaDto(
                 "Mi Empresa", null, null, null, null, List.of(), null, null, null,
-                "clasica", "claro", List.of(), null, null, null, null, null,
+                "clasica", "claro", null, null, null, null,
                 null, null, null
         );
         when(publicTiendaService.obtenerEmpresa(SLUG)).thenReturn(dto);
@@ -111,18 +110,6 @@ class PublicTiendaControllerTest {
         assertThat(respuesta.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(respuesta.getBody()).containsExactly(dto);
         verify(publicTiendaService).listarResenas(SLUG, 5L);
-    }
-
-    @Test
-    void listarTipsDevuelveOkConLaListaDelService() {
-        PublicTipDto dto = new PublicTipDto("Cuidado del mate", "Lavar con agua fría", null);
-        when(publicTiendaService.listarTips(SLUG)).thenReturn(List.of(dto));
-
-        ResponseEntity<List<PublicTipDto>> respuesta = publicTiendaController.listarTips(SLUG);
-
-        assertThat(respuesta.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(respuesta.getBody()).containsExactly(dto);
-        verify(publicTiendaService).listarTips(SLUG);
     }
 
     @Test

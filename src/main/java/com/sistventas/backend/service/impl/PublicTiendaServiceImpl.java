@@ -27,7 +27,6 @@ import com.sistventas.backend.dto.PublicPedidoItemRequest;
 import com.sistventas.backend.dto.PublicPedidoRequest;
 import com.sistventas.backend.dto.PublicPedidoResultadoDto;
 import com.sistventas.backend.dto.PublicProductoDto;
-import com.sistventas.backend.dto.PublicTipDto;
 import com.sistventas.backend.dto.PublicVarianteDto;
 import com.sistventas.backend.dto.ResenaDestacadaDto;
 import com.sistventas.backend.dto.ResenaDto;
@@ -67,7 +66,6 @@ import com.sistventas.backend.repository.ReglaDescuentoComboRepository;
 import com.sistventas.backend.repository.ResenaRepository;
 import com.sistventas.backend.repository.TiendaBannerImagenRepository;
 import com.sistventas.backend.repository.TiendaCategoriaRepository;
-import com.sistventas.backend.repository.TiendaTipRepository;
 import com.sistventas.backend.repository.VentaEstadoHistorialRepository;
 import com.sistventas.backend.repository.VentaRepository;
 import com.sistventas.backend.security.GoogleTokenVerifier;
@@ -126,7 +124,6 @@ public class PublicTiendaServiceImpl implements PublicTiendaService {
     private final AtributoFiltroValorRepository atributoFiltroValorRepository;
     private final TiendaBannerImagenRepository tiendaBannerImagenRepository;
     private final ResenaRepository resenaRepository;
-    private final TiendaTipRepository tiendaTipRepository;
     private final StockDisponibleCalculator stockDisponibleCalculator;
     private final ReglaDescuentoComboRepository reglaDescuentoComboRepository;
     private final CalculadorDescuentoComboService calculadorDescuentoComboService;
@@ -150,7 +147,6 @@ public class PublicTiendaServiceImpl implements PublicTiendaService {
                                     AtributoFiltroValorRepository atributoFiltroValorRepository,
                                     TiendaBannerImagenRepository tiendaBannerImagenRepository,
                                     ResenaRepository resenaRepository,
-                                    TiendaTipRepository tiendaTipRepository,
                                     StockDisponibleCalculator stockDisponibleCalculator,
                                     ReglaDescuentoComboRepository reglaDescuentoComboRepository,
                                     CalculadorDescuentoComboService calculadorDescuentoComboService,
@@ -175,7 +171,6 @@ public class PublicTiendaServiceImpl implements PublicTiendaService {
         this.atributoFiltroValorRepository = atributoFiltroValorRepository;
         this.tiendaBannerImagenRepository = tiendaBannerImagenRepository;
         this.resenaRepository = resenaRepository;
-        this.tiendaTipRepository = tiendaTipRepository;
         this.stockDisponibleCalculator = stockDisponibleCalculator;
         this.reglaDescuentoComboRepository = reglaDescuentoComboRepository;
         this.calculadorDescuentoComboService = calculadorDescuentoComboService;
@@ -192,10 +187,6 @@ public class PublicTiendaServiceImpl implements PublicTiendaService {
         Empresa empresa = resolverEmpresa(slug);
         List<BannerImagenPublicaDto> bannerImagenes =
                 tiendaBannerImagenRepository.findByEmpresaIdAndTipoOrderByOrden(empresa.getId(), "HERO").stream()
-                        .map(this::toBannerImagenPublicaDto)
-                        .toList();
-        List<BannerImagenPublicaDto> bannerVerticales =
-                tiendaBannerImagenRepository.findByEmpresaIdAndTipoOrderByOrden(empresa.getId(), "VERTICAL").stream()
                         .map(this::toBannerImagenPublicaDto)
                         .toList();
         // Una fecha límite vencida oculta la barra sola, sin que el dueño
@@ -215,8 +206,6 @@ public class PublicTiendaServiceImpl implements PublicTiendaService {
                 empresa.getTiendaContactoEmail(),
                 empresa.getTiendaFuente(),
                 empresa.getTiendaTema(),
-                bannerVerticales,
-                empresa.getTiendaBannerVerticalPosicion(),
                 empresa.getTiendaRazonSocial(),
                 empresa.getTiendaCuit(),
                 empresa.getTiendaDireccion(),
@@ -542,15 +531,6 @@ public class PublicTiendaServiceImpl implements PublicTiendaService {
         ClienteLoginDto clienteDto =
                 new ClienteLoginDto(cliente.getId(), cliente.getNombre(), cliente.getEmail(), cliente.getTelefono());
         return new ClienteLoginResponse(token, clienteDto);
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public List<PublicTipDto> listarTips(String slug) {
-        Empresa empresa = resolverEmpresa(slug);
-        return tiendaTipRepository.findByEmpresaIdOrderByOrdenAscIdAsc(empresa.getId()).stream()
-                .map(t -> new PublicTipDto(t.getTitulo(), t.getContenido(), t.getFotoUrl()))
-                .toList();
     }
 
     @Override

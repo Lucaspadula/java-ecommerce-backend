@@ -6,23 +6,22 @@ import com.sistventas.backend.dto.ActualizarCatalogoSeccionRequest;
 import com.sistventas.backend.dto.ActualizarEstiloTextoCatalogoRequest;
 import com.sistventas.backend.dto.ActualizarProductoBannerImagenRequest;
 import com.sistventas.backend.dto.ActualizarReglaDescuentoComboRequest;
-import com.sistventas.backend.dto.ActualizarTiendaRequest;
+import com.sistventas.backend.dto.ActualizarAparienciaRequest;
+import com.sistventas.backend.dto.ActualizarDatosTiendaRequest;
+import com.sistventas.backend.dto.ActualizarPromocionesRequest;
 import com.sistventas.backend.dto.BannerImagenTiendaDto;
 import com.sistventas.backend.dto.CatalogoSeccionDto;
 import com.sistventas.backend.dto.CategoriaSubcategoriaDto;
 import com.sistventas.backend.dto.CategoriaTiendaDto;
 import com.sistventas.backend.dto.CrearCatalogoSeccionRequest;
 import com.sistventas.backend.dto.CrearReglaDescuentoComboRequest;
-import com.sistventas.backend.dto.CrearTipRequest;
 import com.sistventas.backend.dto.PerfilDto;
 import com.sistventas.backend.dto.ReglaDescuentoComboDto;
-import com.sistventas.backend.dto.TipDto;
 import com.sistventas.backend.security.UserPrincipal;
 import com.sistventas.backend.service.PerfilService;
 import com.sistventas.backend.service.ReglaDescuentoComboService;
 import com.sistventas.backend.service.TiendaCatalogoSeccionService;
 import com.sistventas.backend.service.TiendaCategoriaService;
-import com.sistventas.backend.service.TiendaTipService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -53,18 +52,15 @@ public class EmpresaController {
 
     private final PerfilService perfilService;
     private final TiendaCategoriaService tiendaCategoriaService;
-    private final TiendaTipService tiendaTipService;
     private final ReglaDescuentoComboService reglaDescuentoComboService;
     private final TiendaCatalogoSeccionService tiendaCatalogoSeccionService;
 
     public EmpresaController(PerfilService perfilService,
                               TiendaCategoriaService tiendaCategoriaService,
-                              TiendaTipService tiendaTipService,
                               ReglaDescuentoComboService reglaDescuentoComboService,
                               TiendaCatalogoSeccionService tiendaCatalogoSeccionService) {
         this.perfilService = perfilService;
         this.tiendaCategoriaService = tiendaCategoriaService;
-        this.tiendaTipService = tiendaTipService;
         this.reglaDescuentoComboService = reglaDescuentoComboService;
         this.tiendaCatalogoSeccionService = tiendaCatalogoSeccionService;
     }
@@ -102,11 +98,26 @@ public class EmpresaController {
         return ResponseEntity.ok(perfilService.actualizarEstiloTextoCatalogo(request, principal));
     }
 
-    @PutMapping("/tienda")
-    public ResponseEntity<PerfilDto> actualizarTienda(
-            @Valid @RequestBody ActualizarTiendaRequest request,
+    // Guardado parcial por pantalla del panel (reemplaza al viejo PUT /tienda).
+    @PutMapping("/tienda/apariencia")
+    public ResponseEntity<PerfilDto> actualizarApariencia(
+            @Valid @RequestBody ActualizarAparienciaRequest request,
             @AuthenticationPrincipal UserPrincipal principal) {
-        return ResponseEntity.ok(perfilService.actualizarTienda(request, principal));
+        return ResponseEntity.ok(perfilService.actualizarApariencia(request, principal));
+    }
+
+    @PutMapping("/tienda/promociones")
+    public ResponseEntity<PerfilDto> actualizarPromociones(
+            @Valid @RequestBody ActualizarPromocionesRequest request,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(perfilService.actualizarPromociones(request, principal));
+    }
+
+    @PutMapping("/tienda/datos")
+    public ResponseEntity<PerfilDto> actualizarDatos(
+            @Valid @RequestBody ActualizarDatosTiendaRequest request,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(perfilService.actualizarDatosTienda(request, principal));
     }
 
     @GetMapping("/tienda/banner-imagenes")
@@ -115,15 +126,14 @@ public class EmpresaController {
         return ResponseEntity.ok(perfilService.listarBannerImagenes(principal));
     }
 
-    // tipo default "HERO": un frontend viejo que no mande el campo (o el
-    // flujo actual de subida del banner hero) sigue funcionando sin cambios.
+    // Solo banner HERO (los verticales pasaron a bloques); un `tipo` que
+    // mande un cliente viejo se ignora.
     @PostMapping(value = "/tienda/banner-imagenes", consumes = "multipart/form-data")
     public ResponseEntity<BannerImagenTiendaDto> agregarBannerImagen(
             @RequestParam("file") MultipartFile file,
-            @RequestParam(value = "tipo", required = false, defaultValue = "HERO") String tipo,
             @RequestParam(value = "productoId", required = false) Long productoId,
             @AuthenticationPrincipal UserPrincipal principal) {
-        return ResponseEntity.ok(perfilService.agregarBannerImagen(file, tipo, productoId, principal));
+        return ResponseEntity.ok(perfilService.agregarBannerImagen(file, productoId, principal));
     }
 
     @DeleteMapping("/tienda/banner-imagenes/{id}")
@@ -169,36 +179,6 @@ public class EmpresaController {
             @PathVariable Long categoriaId,
             @AuthenticationPrincipal UserPrincipal principal) {
         return ResponseEntity.ok(tiendaCategoriaService.eliminarImagen(categoriaId, principal));
-    }
-
-    @GetMapping("/tienda/tips")
-    public ResponseEntity<List<TipDto>> listarTips(
-            @AuthenticationPrincipal UserPrincipal principal) {
-        return ResponseEntity.ok(tiendaTipService.listar(principal));
-    }
-
-    @PostMapping("/tienda/tips")
-    public ResponseEntity<TipDto> crearTip(
-            @Valid @RequestBody CrearTipRequest request,
-            @AuthenticationPrincipal UserPrincipal principal) {
-        TipDto dto = tiendaTipService.crear(request, principal);
-        return ResponseEntity.status(HttpStatus.CREATED).body(dto);
-    }
-
-    @DeleteMapping("/tienda/tips/{id}")
-    public ResponseEntity<Void> eliminarTip(
-            @PathVariable Long id,
-            @AuthenticationPrincipal UserPrincipal principal) {
-        tiendaTipService.eliminar(id, principal);
-        return ResponseEntity.noContent().build();
-    }
-
-    @PostMapping(value = "/tienda/tips/{id}/foto", consumes = "multipart/form-data")
-    public ResponseEntity<TipDto> actualizarFotoTip(
-            @PathVariable Long id,
-            @RequestParam("file") MultipartFile file,
-            @AuthenticationPrincipal UserPrincipal principal) {
-        return ResponseEntity.ok(tiendaTipService.actualizarFoto(id, file, principal));
     }
 
     @GetMapping("/tienda/catalogo-secciones")

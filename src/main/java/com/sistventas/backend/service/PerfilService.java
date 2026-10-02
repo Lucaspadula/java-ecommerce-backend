@@ -4,7 +4,9 @@ import com.sistventas.backend.dto.ActualizarCatalogoConfigRequest;
 import com.sistventas.backend.dto.ActualizarEstiloTextoCatalogoRequest;
 import com.sistventas.backend.dto.ActualizarGeminiApiKeyRequest;
 import com.sistventas.backend.dto.ActualizarPerfilRequest;
-import com.sistventas.backend.dto.ActualizarTiendaRequest;
+import com.sistventas.backend.dto.ActualizarAparienciaRequest;
+import com.sistventas.backend.dto.ActualizarDatosTiendaRequest;
+import com.sistventas.backend.dto.ActualizarPromocionesRequest;
 import com.sistventas.backend.dto.BannerImagenTiendaDto;
 import com.sistventas.backend.dto.CambiarPasswordRequest;
 import com.sistventas.backend.dto.MensajeResponse;
@@ -23,13 +25,18 @@ public interface PerfilService {
 
     PerfilDto actualizarLogoEmpresa(MultipartFile file, UserPrincipal principal);
 
-    PerfilDto actualizarTienda(ActualizarTiendaRequest request, UserPrincipal principal);
+    // Guardado parcial por pantalla (reemplazan al viejo PUT /tienda).
+    PerfilDto actualizarApariencia(ActualizarAparienciaRequest request, UserPrincipal principal);
+
+    PerfilDto actualizarPromociones(ActualizarPromocionesRequest request, UserPrincipal principal);
+
+    PerfilDto actualizarDatosTienda(ActualizarDatosTiendaRequest request, UserPrincipal principal);
 
     PerfilDto actualizarGeminiApiKey(ActualizarGeminiApiKeyRequest request, UserPrincipal principal);
 
     List<BannerImagenTiendaDto> listarBannerImagenes(UserPrincipal principal);
 
-    BannerImagenTiendaDto agregarBannerImagen(MultipartFile file, String tipo, Long productoId, UserPrincipal principal);
+    BannerImagenTiendaDto agregarBannerImagen(MultipartFile file, Long productoId, UserPrincipal principal);
 
     void eliminarBannerImagen(Long imagenId, UserPrincipal principal);
 

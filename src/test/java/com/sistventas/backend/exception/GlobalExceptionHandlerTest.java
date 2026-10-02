@@ -269,15 +269,6 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
-    void tipNoEncontradoDevuelve404() {
-        ResponseEntity<Map<String, String>> response =
-                handler.handleTipNoEncontrado(new TipNoEncontradoException());
-
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
-        assertThat(response.getBody()).containsExactly(Map.entry("error", "Tip no encontrado"));
-    }
-
-    @Test
     void reglaDescuentoComboNoEncontradaDevuelve404() {
         ResponseEntity<Map<String, String>> response =
                 handler.handleReglaDescuentoComboNoEncontrada(new ReglaDescuentoComboNoEncontradaException());

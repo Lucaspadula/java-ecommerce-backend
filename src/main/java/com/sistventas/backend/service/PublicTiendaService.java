@@ -19,7 +19,6 @@ import com.sistventas.backend.dto.PublicPedidoEstadoDto;
 import com.sistventas.backend.dto.PublicPedidoRequest;
 import com.sistventas.backend.dto.PublicPedidoResultadoDto;
 import com.sistventas.backend.dto.PublicProductoDto;
-import com.sistventas.backend.dto.PublicTipDto;
 import com.sistventas.backend.dto.ResenaDto;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -65,11 +64,6 @@ public interface PublicTiendaService {
     // Registro con Google: pide el teléfono en un paso extra (el idToken no
     // lo trae) para poder aplicar el mismo criterio de vínculo con compras.
     ClienteLoginResponse registrarClienteGoogle(String slug, RegistrarClienteGoogleRequest request);
-
-    // Tips de cuidado del mate (título + contenido, sin autor asociado):
-    // franja fija en la home de la tienda pública, mostrada después de los
-    // testimonios, cargados a mano por el dueño desde el panel admin.
-    List<PublicTipDto> listarTips(String slug);
 
     // Bloques configurables ACTIVOS de la tienda, ordenados por slot y orden,
     // con sus cards ordenadas y el destino de cada acción ya resuelto.

@@ -14,7 +14,6 @@ import com.sistventas.backend.dto.PublicPedidoItemRequest;
 import com.sistventas.backend.dto.PublicPedidoRequest;
 import com.sistventas.backend.dto.PublicPedidoResultadoDto;
 import com.sistventas.backend.dto.PublicProductoDto;
-import com.sistventas.backend.dto.PublicTipDto;
 import com.sistventas.backend.dto.RegistrarClienteRequest;
 import com.sistventas.backend.entity.AtributoFiltro;
 import com.sistventas.backend.entity.AtributoFiltroValor;
@@ -31,7 +30,6 @@ import com.sistventas.backend.entity.ReglaDescuentoCombo;
 import com.sistventas.backend.entity.Resena;
 import com.sistventas.backend.entity.Subcategoria;
 import com.sistventas.backend.entity.TiendaCategoria;
-import com.sistventas.backend.entity.TiendaTip;
 import com.sistventas.backend.entity.Venta;
 import com.sistventas.backend.dto.ResenaDto;
 import com.sistventas.backend.exception.AccionNoPermitidaException;
@@ -56,7 +54,6 @@ import com.sistventas.backend.repository.ReglaDescuentoComboRepository;
 import com.sistventas.backend.repository.ResenaRepository;
 import com.sistventas.backend.repository.TiendaBannerImagenRepository;
 import com.sistventas.backend.repository.TiendaCategoriaRepository;
-import com.sistventas.backend.repository.TiendaTipRepository;
 import com.sistventas.backend.repository.VentaEstadoHistorialRepository;
 import com.sistventas.backend.repository.VentaRepository;
 import org.junit.jupiter.api.Test;
@@ -129,9 +126,6 @@ class PublicTiendaServiceImplTest {
 
     @Mock
     private ResenaRepository resenaRepository;
-
-    @Mock
-    private TiendaTipRepository tiendaTipRepository;
 
     @Mock
     private StockDisponibleCalculator stockDisponibleCalculator;
@@ -287,7 +281,6 @@ class PublicTiendaServiceImplTest {
         empresa.setTiendaTema("oscuro");
         when(empresaRepository.findBySlugAndTiendaHabilitadaTrue(SLUG)).thenReturn(Optional.of(empresa));
         when(tiendaBannerImagenRepository.findByEmpresaIdAndTipoOrderByOrden(EMPRESA_ID, "HERO")).thenReturn(List.of());
-        when(tiendaBannerImagenRepository.findByEmpresaIdAndTipoOrderByOrden(EMPRESA_ID, "VERTICAL")).thenReturn(List.of());
 
         PublicEmpresaDto resultado = publicTiendaService.obtenerEmpresa(SLUG);
 
@@ -560,26 +553,7 @@ class PublicTiendaServiceImplTest {
         assertThat(resultado.total()).isEqualByComparingTo(new BigDecimal("500.00"));
     }
 
-    // --- listarTips / listarResenas: scoping por empresa ---
-
-    @Test
-    void listarTipsTraeSoloLosMapeadosAlDtoPublico() {
-        Empresa empresa = empresa();
-        TiendaTip tip = new TiendaTip();
-        tip.setEmpresaId(EMPRESA_ID);
-        tip.setTitulo("Cuidado del mate");
-        tip.setContenido("Lavalo con agua fría, nunca con detergente");
-
-        when(empresaRepository.findBySlugAndTiendaHabilitadaTrue(SLUG)).thenReturn(Optional.of(empresa));
-        when(tiendaTipRepository.findByEmpresaIdOrderByOrdenAscIdAsc(EMPRESA_ID)).thenReturn(List.of(tip));
-
-        List<PublicTipDto> resultado = publicTiendaService.listarTips(SLUG);
-
-        assertThat(resultado).hasSize(1);
-        assertThat(resultado.get(0).titulo()).isEqualTo("Cuidado del mate");
-        assertThat(resultado.get(0).contenido()).isEqualTo("Lavalo con agua fría, nunca con detergente");
-        verify(tiendaTipRepository).findByEmpresaIdOrderByOrdenAscIdAsc(EMPRESA_ID);
-    }
+    // --- listarResenas: scoping por empresa ---
 
     @Test
     void listarResenasTraeSoloLasDelProductoDeLaEmpresaCorrecta() {
@@ -1188,7 +1162,7 @@ class PublicTiendaServiceImplTest {
         return new PublicTiendaServiceImpl(empresaRepository, productoRepository, clienteRepository, ventaRepository,
                 ventaEstadoHistorialRepository, tiendaCategoriaRepository, categoriaRepository, subcategoriaRepository,
                 atributoFiltroRepository, atributoFiltroValorRepository,
-                tiendaBannerImagenRepository, resenaRepository, tiendaTipRepository,
+                tiendaBannerImagenRepository, resenaRepository,
                 stockDisponibleCalculator, reglaDescuentoComboRepository, calculadorDescuentoComboService,
                 imagenUploadValidator, new ProductoFotoResolver(), jwtService, passwordEncoder, googleTokenVerifier,
                 tiendaBloqueRepository, tiendaBloqueCardRepository);
@@ -1276,7 +1250,6 @@ class PublicTiendaServiceImplTest {
 
         when(empresaRepository.findBySlugAndTiendaHabilitadaTrue(SLUG)).thenReturn(Optional.of(empresa));
         when(tiendaBannerImagenRepository.findByEmpresaIdAndTipoOrderByOrden(EMPRESA_ID, "HERO")).thenReturn(List.of(heroImg));
-        when(tiendaBannerImagenRepository.findByEmpresaIdAndTipoOrderByOrden(EMPRESA_ID, "VERTICAL")).thenReturn(List.of());
 
         PublicEmpresaDto resultado = publicTiendaService.obtenerEmpresa(SLUG);
 

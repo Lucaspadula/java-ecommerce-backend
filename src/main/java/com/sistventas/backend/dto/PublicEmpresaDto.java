@@ -15,12 +15,6 @@ public record PublicEmpresaDto(
         String contactoEmail,
         String tiendaFuente,
         String tiendaTema,
-        // Sección nueva, separada del hero (bannerImagenes de arriba): hasta
-        // 12 imágenes verticales, cada una con producto opcional. Se muestra
-        // en la tienda pública solo si esta lista no está vacía Y
-        // bannerVerticalPosicion no es null (ver Empresa.tiendaBannerVerticalPosicion).
-        List<BannerImagenPublicaDto> bannerVerticales,
-        String bannerVerticalPosicion,
         // Los 4 siguientes son opcionales, para más presencia legal en el
         // footer ("Sobre nosotros" es texto libre, el resto son datos
         // formales de la empresa). null = no cargado, el frontend omite esa

@@ -3,7 +3,9 @@ package com.sistventas.backend.service.impl;
 import com.sistventas.backend.dto.ActualizarCatalogoConfigRequest;
 import com.sistventas.backend.dto.ActualizarEstiloTextoCatalogoRequest;
 import com.sistventas.backend.dto.ActualizarPerfilRequest;
-import com.sistventas.backend.dto.ActualizarTiendaRequest;
+import com.sistventas.backend.dto.ActualizarAparienciaRequest;
+import com.sistventas.backend.dto.ActualizarDatosTiendaRequest;
+import com.sistventas.backend.dto.ActualizarPromocionesRequest;
 import com.sistventas.backend.dto.BannerImagenTiendaDto;
 import com.sistventas.backend.dto.CambiarPasswordRequest;
 import com.sistventas.backend.dto.MensajeResponse;
@@ -34,6 +36,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -78,79 +82,113 @@ class PerfilServiceImplTest {
 
     private final UserPrincipal principal = new UserPrincipal(USUARIO_ID, EMPRESA_ID, false, RolEmpresa.ADMIN);
 
+    // --- PUT parciales por pantalla (nav R5/E6): cada uno toca SOLO sus campos ---
+
     @Test
-    void actualizarTiendaConFuenteYTemaConValorLosPersistaTalCualYLosReflejaEnElDto() {
+    void actualizarAparienciaPersisteFuenteTemaYTextosDelHeroSinTocarOtrosCampos() {
         Empresa empresa = empresa();
+        empresa.setSlug("original");
+        empresa.setTiendaCuponCodigo("CUPON");
+        empresa.setTiendaContactoEmail("a@b.com");
         prepararEmpresaYUsuario(empresa);
-        when(empresaRepository.findBySlug("mi-tienda")).thenReturn(Optional.empty());
 
-        ActualizarTiendaRequest request = request("mi-tienda", "moderna", "oscuro");
-
-        PerfilDto resultado = perfilService.actualizarTienda(request, principal);
+        PerfilDto resultado = perfilService.actualizarApariencia(
+                new ActualizarAparienciaRequest(" Sub ", "Titulo", "Desc", "moderna", "oscuro"), principal);
 
         assertThat(empresa.getTiendaFuente()).isEqualTo("moderna");
         assertThat(empresa.getTiendaTema()).isEqualTo("oscuro");
+        assertThat(empresa.getTiendaBannerTagline()).isEqualTo("Sub");
+        assertThat(empresa.getTiendaBannerTitulo()).isEqualTo("Titulo");
+        assertThat(empresa.getTiendaBannerDescripcion()).isEqualTo("Desc");
         assertThat(resultado.tiendaFuente()).isEqualTo("moderna");
-        assertThat(resultado.tiendaTema()).isEqualTo("oscuro");
+        assertThat(empresa.getSlug()).isEqualTo("original");
+        assertThat(empresa.getTiendaCuponCodigo()).isEqualTo("CUPON");
+        assertThat(empresa.getTiendaContactoEmail()).isEqualTo("a@b.com");
     }
 
     @Test
-    void actualizarTiendaConFuenteYTemaNulosCaeALosDefaults() {
+    void actualizarAparienciaConFuenteYTemaNulosOVaciosCaeALosDefaults() {
         Empresa empresa = empresa();
         prepararEmpresaYUsuario(empresa);
-        when(empresaRepository.findBySlug("mi-tienda")).thenReturn(Optional.empty());
 
-        ActualizarTiendaRequest request = request("mi-tienda", null, null);
-
-        PerfilDto resultado = perfilService.actualizarTienda(request, principal);
+        perfilService.actualizarApariencia(new ActualizarAparienciaRequest(null, "  ", null, "   ", ""), principal);
 
         assertThat(empresa.getTiendaFuente()).isEqualTo("clasica");
         assertThat(empresa.getTiendaTema()).isEqualTo("claro");
-        assertThat(resultado.tiendaFuente()).isEqualTo("clasica");
-        assertThat(resultado.tiendaTema()).isEqualTo("claro");
+        assertThat(empresa.getTiendaBannerTitulo()).isNull();
     }
 
     @Test
-    void actualizarTiendaConFuenteYTemaVaciosCaeALosDefaults() {
+    void actualizarPromocionesPersisteCuponYOfertaSinTocarOtrosCampos() {
         Empresa empresa = empresa();
+        empresa.setSlug("original");
+        empresa.setTiendaFuente("elegante");
+        prepararEmpresaYUsuario(empresa);
+        LocalDateTime fin = LocalDateTime.of(2030, 1, 1, 10, 0);
+
+        PerfilDto resultado = perfilService.actualizarPromociones(
+                new ActualizarPromocionesRequest(" BIEN10 ", new BigDecimal("10"), true, "HOY", "Envio gratis", fin), principal);
+
+        assertThat(empresa.getTiendaCuponCodigo()).isEqualTo("BIEN10");
+        assertThat(empresa.getTiendaCuponPorcentaje()).isEqualByComparingTo("10");
+        assertThat(empresa.isTiendaOfertaActiva()).isTrue();
+        assertThat(empresa.getTiendaOfertaEtiqueta()).isEqualTo("HOY");
+        assertThat(empresa.getTiendaOfertaTexto()).isEqualTo("Envio gratis");
+        assertThat(empresa.getTiendaOfertaFechaFin()).isEqualTo(fin);
+        assertThat(resultado.tiendaCuponCodigo()).isEqualTo("BIEN10");
+        assertThat(empresa.getSlug()).isEqualTo("original");
+        assertThat(empresa.getTiendaFuente()).isEqualTo("elegante");
+    }
+
+    @Test
+    void actualizarDatosPersisteSlugContactoYLegalesSinTocarOtrosCampos() {
+        Empresa empresa = empresa();
+        empresa.setTiendaTema("oscuro");
+        empresa.setTiendaCuponCodigo("CUPON");
         prepararEmpresaYUsuario(empresa);
         when(empresaRepository.findBySlug("mi-tienda")).thenReturn(Optional.empty());
 
-        ActualizarTiendaRequest request = request("mi-tienda", "   ", "");
+        PerfilDto resultado = perfilService.actualizarDatosTienda(datos("mi-tienda"), principal);
 
-        PerfilDto resultado = perfilService.actualizarTienda(request, principal);
-
-        assertThat(empresa.getTiendaFuente()).isEqualTo("clasica");
-        assertThat(empresa.getTiendaTema()).isEqualTo("claro");
-        assertThat(resultado.tiendaFuente()).isEqualTo("clasica");
-        assertThat(resultado.tiendaTema()).isEqualTo("claro");
+        assertThat(empresa.getSlug()).isEqualTo("mi-tienda");
+        assertThat(empresa.isTiendaHabilitada()).isTrue();
+        assertThat(empresa.getTiendaContactoWhatsapp()).isEqualTo("549351");
+        assertThat(empresa.getTiendaRazonSocial()).isEqualTo("Yeshua SRL");
+        assertThat(empresa.getTiendaSobreNosotros()).isEqualTo("Historia");
+        assertThat(resultado.empresaSlug()).isEqualTo("mi-tienda");
+        assertThat(empresa.getTiendaTema()).isEqualTo("oscuro");
+        assertThat(empresa.getTiendaCuponCodigo()).isEqualTo("CUPON");
     }
 
     @Test
-    void actualizarTiendaConSlugYaUsadoPorOtraEmpresaLanzaSlugEnUsoException() {
+    void actualizarDatosConSlugYaUsadoPorOtraEmpresaLanzaSlugEnUsoException() {
         Empresa otraEmpresa = empresa();
         otraEmpresa.setId(999L);
         when(empresaRepository.findBySlug("mi-tienda")).thenReturn(Optional.of(otraEmpresa));
 
-        ActualizarTiendaRequest request = request("mi-tienda", "clasica", "claro");
-
-        assertThatThrownBy(() -> perfilService.actualizarTienda(request, principal))
+        assertThatThrownBy(() -> perfilService.actualizarDatosTienda(datos("mi-tienda"), principal))
                 .isInstanceOf(SlugEnUsoException.class);
     }
 
     @Test
-    void actualizarTiendaConSlugDeLaPropiaEmpresaNoLanzaConflicto() {
+    void actualizarDatosConSlugDeLaPropiaEmpresaNoLanzaConflicto() {
         Empresa empresa = empresa();
         prepararEmpresaYUsuario(empresa);
-        // La misma empresa reguardando su propio slug: findBySlug la
-        // encuentra a ELLA MISMA, no debe tratarse como conflicto.
+        // La misma empresa reguardando su propio slug no es conflicto.
         when(empresaRepository.findBySlug("mi-tienda")).thenReturn(Optional.of(empresa));
 
-        ActualizarTiendaRequest request = request("mi-tienda", "clasica", "claro");
-
-        PerfilDto resultado = perfilService.actualizarTienda(request, principal);
+        PerfilDto resultado = perfilService.actualizarDatosTienda(datos("mi-tienda"), principal);
 
         assertThat(resultado.empresaSlug()).isEqualTo("mi-tienda");
+    }
+
+    @Test
+    void actualizarParcialesConMemberLanzaAccesoRestringidoAdmin() {
+        UserPrincipal member = new UserPrincipal(USUARIO_ID, EMPRESA_ID, false, RolEmpresa.MEMBER);
+
+        assertThatThrownBy(() -> perfilService.actualizarApariencia(
+                new ActualizarAparienciaRequest(null, null, null, null, null), member))
+                .isInstanceOf(AccesoRestringidoAdminException.class);
     }
 
     @Test
@@ -387,13 +425,13 @@ class PerfilServiceImplTest {
     }
 
     @Test
-    void agregarBannerImagenSinTipoDefaultAHeroYOrdenSaleDeLaCantidadActual() {
+    void agregarBannerImagenEsSiempreHeroYOrdenSaleDeLaCantidadActual() {
         MultipartFile file = mock(MultipartFile.class);
         when(tiendaBannerImagenRepository.countByEmpresaIdAndTipo(EMPRESA_ID, "HERO")).thenReturn(2L);
         when(imagenUploadValidator.validarYObtenerExtension(file)).thenReturn(".png");
         when(tiendaBannerImagenRepository.save(any(TiendaBannerImagen.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        BannerImagenTiendaDto resultado = perfilService.agregarBannerImagen(file, null, null, principal);
+        BannerImagenTiendaDto resultado = perfilService.agregarBannerImagen(file, null, principal);
 
         assertThat(resultado.tipo()).isEqualTo("HERO");
         assertThat(resultado.orden()).isEqualTo(2);
@@ -401,33 +439,12 @@ class PerfilServiceImplTest {
     }
 
     @Test
-    void agregarBannerImagenConTipoVerticalEnMinusculasLoNormalizaAMayusculas() {
-        MultipartFile file = mock(MultipartFile.class);
-        when(tiendaBannerImagenRepository.countByEmpresaIdAndTipo(EMPRESA_ID, "VERTICAL")).thenReturn(0L);
-        when(imagenUploadValidator.validarYObtenerExtension(file)).thenReturn(".png");
-        when(tiendaBannerImagenRepository.save(any(TiendaBannerImagen.class))).thenAnswer(inv -> inv.getArgument(0));
-
-        BannerImagenTiendaDto resultado = perfilService.agregarBannerImagen(file, "  vertical  ", null, principal);
-
-        assertThat(resultado.tipo()).isEqualTo("VERTICAL");
-    }
-
-    @Test
     void agregarBannerImagenHeroEnElMaximoLanzaAccionNoPermitida() {
         when(tiendaBannerImagenRepository.countByEmpresaIdAndTipo(EMPRESA_ID, "HERO")).thenReturn(6L);
 
-        assertThatThrownBy(() -> perfilService.agregarBannerImagen(mock(MultipartFile.class), "HERO", null, principal))
+        assertThatThrownBy(() -> perfilService.agregarBannerImagen(mock(MultipartFile.class), null, principal))
                 .isInstanceOf(AccionNoPermitidaException.class)
                 .hasMessageContaining("Máximo 6 imágenes en el banner");
-    }
-
-    @Test
-    void agregarBannerImagenVerticalEnElMaximoLanzaAccionNoPermitidaConMensajeDistinto() {
-        when(tiendaBannerImagenRepository.countByEmpresaIdAndTipo(EMPRESA_ID, "VERTICAL")).thenReturn(12L);
-
-        assertThatThrownBy(() -> perfilService.agregarBannerImagen(mock(MultipartFile.class), "VERTICAL", null, principal))
-                .isInstanceOf(AccionNoPermitidaException.class)
-                .hasMessageContaining("Máximo 12 imágenes en los banners verticales");
     }
 
     @Test
@@ -435,7 +452,7 @@ class PerfilServiceImplTest {
         when(tiendaBannerImagenRepository.countByEmpresaIdAndTipo(EMPRESA_ID, "HERO")).thenReturn(0L);
         when(productoRepository.findByIdAndEmpresaId(99L, EMPRESA_ID)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> perfilService.agregarBannerImagen(mock(MultipartFile.class), null, 99L, principal))
+        assertThatThrownBy(() -> perfilService.agregarBannerImagen(mock(MultipartFile.class), 99L, principal))
                 .isInstanceOf(ProductoNoEncontradoException.class);
     }
 
@@ -449,7 +466,7 @@ class PerfilServiceImplTest {
         when(imagenUploadValidator.validarYObtenerExtension(file)).thenReturn(".png");
         when(tiendaBannerImagenRepository.save(any(TiendaBannerImagen.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        BannerImagenTiendaDto resultado = perfilService.agregarBannerImagen(file, null, 7L, principal);
+        BannerImagenTiendaDto resultado = perfilService.agregarBannerImagen(file, 7L, principal);
 
         assertThat(resultado.productoId()).isEqualTo(7L);
     }
@@ -461,7 +478,7 @@ class PerfilServiceImplTest {
         when(imagenUploadValidator.validarYObtenerExtension(file)).thenReturn(".png");
         doThrow(new IOException("disco lleno")).when(file).transferTo(any(java.nio.file.Path.class));
 
-        assertThatThrownBy(() -> perfilService.agregarBannerImagen(file, null, null, principal))
+        assertThatThrownBy(() -> perfilService.agregarBannerImagen(file, null, principal))
                 .isInstanceOf(java.io.UncheckedIOException.class);
     }
 
@@ -594,29 +611,7 @@ class PerfilServiceImplTest {
         return empresa;
     }
 
-    private ActualizarTiendaRequest request(String slug, String tiendaFuente, String tiendaTema) {
-        return new ActualizarTiendaRequest(
-                slug,
-                true,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                tiendaFuente,
-                tiendaTema,
-                null,
-                null,
-                null,
-                null,
-                null,
-                false,
-                null,
-                null,
-                null
-        );
+    private ActualizarDatosTiendaRequest datos(String slug) {
+        return new ActualizarDatosTiendaRequest(slug, true, "549351", "@ig", "a@b.com", "Yeshua SRL", "20-1", "Calle 1", "Historia");
     }
 }

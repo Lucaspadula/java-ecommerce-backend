@@ -134,16 +134,6 @@ public class Empresa {
     @Column(name = "gemini_api_key")
     private String geminiApiKey;
 
-    // Dónde se renderiza la sección de banners verticales en la tienda
-    // pública (ver PublicEmpresaDto.bannerVerticalPosicion /
-    // tienda-publica.ts). Nullable a propósito: null = "nunca configurado",
-    // el frontend público NO debe mostrar la sección aunque ya haya
-    // imágenes verticales cargadas. Valores esperados: DESPUES_BANNER,
-    // DESPUES_CATEGORIAS, DESPUES_DESTACADOS, ANTES_FOOTER (el frontend
-    // controla el <select>, no hace falta validar la lista acá).
-    @Column(name = "tienda_banner_vertical_posicion", length = 30)
-    private String tiendaBannerVerticalPosicion;
-
     // Los 3 siguientes son opcionales, para más presencia legal en el footer
     // de la tienda pública (ver TiendaPublica.footerLegal): si no se cargan,
     // el footer simplemente omite esa línea.
@@ -266,8 +256,6 @@ public class Empresa {
     public String getGeminiApiKey() { return geminiApiKey; }
     public void setGeminiApiKey(String geminiApiKey) { this.geminiApiKey = geminiApiKey; }
 
-    public String getTiendaBannerVerticalPosicion() { return tiendaBannerVerticalPosicion; }
-    public void setTiendaBannerVerticalPosicion(String tiendaBannerVerticalPosicion) { this.tiendaBannerVerticalPosicion = tiendaBannerVerticalPosicion; }
 
     public String getTiendaRazonSocial() { return tiendaRazonSocial; }
     public void setTiendaRazonSocial(String tiendaRazonSocial) { this.tiendaRazonSocial = tiendaRazonSocial; }

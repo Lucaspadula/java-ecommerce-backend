@@ -19,7 +19,6 @@ import com.sistventas.backend.dto.PublicPedidoEstadoDto;
 import com.sistventas.backend.dto.PublicPedidoRequest;
 import com.sistventas.backend.dto.PublicPedidoResultadoDto;
 import com.sistventas.backend.dto.PublicProductoDto;
-import com.sistventas.backend.dto.PublicTipDto;
 import com.sistventas.backend.dto.ResenaDto;
 import com.sistventas.backend.exception.CredencialesInvalidasException;
 import com.sistventas.backend.security.ClientePrincipal;
@@ -136,11 +135,6 @@ public class PublicTiendaController {
             @Valid @RequestBody RegistrarClienteGoogleRequest request) {
         ClienteLoginResponse respuesta = publicTiendaService.registrarClienteGoogle(slug, request);
         return ResponseEntity.status(HttpStatus.CREATED).body(respuesta);
-    }
-
-    @GetMapping("/{slug}/tips")
-    public ResponseEntity<List<PublicTipDto>> listarTips(@PathVariable String slug) {
-        return ResponseEntity.ok(publicTiendaService.listarTips(slug));
     }
 
     @GetMapping("/{slug}/bloques")

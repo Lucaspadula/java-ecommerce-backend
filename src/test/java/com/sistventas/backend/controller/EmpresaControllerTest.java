@@ -5,22 +5,21 @@ import com.sistventas.backend.dto.ActualizarColorCategoriaRequest;
 import com.sistventas.backend.dto.ActualizarEstiloTextoCatalogoRequest;
 import com.sistventas.backend.dto.ActualizarProductoBannerImagenRequest;
 import com.sistventas.backend.dto.ActualizarReglaDescuentoComboRequest;
-import com.sistventas.backend.dto.ActualizarTiendaRequest;
+import com.sistventas.backend.dto.ActualizarAparienciaRequest;
+import com.sistventas.backend.dto.ActualizarDatosTiendaRequest;
+import com.sistventas.backend.dto.ActualizarPromocionesRequest;
 import com.sistventas.backend.dto.BannerImagenTiendaDto;
 import com.sistventas.backend.dto.CategoriaSubcategoriaDto;
 import com.sistventas.backend.dto.CategoriaTiendaDto;
 import com.sistventas.backend.dto.CrearReglaDescuentoComboRequest;
-import com.sistventas.backend.dto.CrearTipRequest;
 import com.sistventas.backend.dto.PerfilDto;
 import com.sistventas.backend.dto.ReglaDescuentoComboDto;
-import com.sistventas.backend.dto.TipDto;
 import com.sistventas.backend.entity.RolEmpresa;
 import com.sistventas.backend.exception.ReglaDescuentoComboNoEncontradaException;
 import com.sistventas.backend.security.UserPrincipal;
 import com.sistventas.backend.service.PerfilService;
 import com.sistventas.backend.service.ReglaDescuentoComboService;
 import com.sistventas.backend.service.TiendaCategoriaService;
-import com.sistventas.backend.service.TiendaTipService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -53,9 +52,6 @@ class EmpresaControllerTest {
 
     @Mock
     private TiendaCategoriaService tiendaCategoriaService;
-
-    @Mock
-    private TiendaTipService tiendaTipService;
 
     @Mock
     private ReglaDescuentoComboService reglaDescuentoComboService;
@@ -130,16 +126,43 @@ class EmpresaControllerTest {
     }
 
     @Test
-    void actualizarTiendaDevuelveOkConElPerfilActualizado() {
-        ActualizarTiendaRequest request = tiendaRequest();
+    void actualizarAparienciaDevuelveOkConElPerfilActualizado() {
+        ActualizarAparienciaRequest request = new ActualizarAparienciaRequest("sub", "titulo", "desc", "clasica", "claro");
         PerfilDto dto = perfilDto();
-        when(perfilService.actualizarTienda(request, principal)).thenReturn(dto);
+        when(perfilService.actualizarApariencia(request, principal)).thenReturn(dto);
 
-        ResponseEntity<PerfilDto> respuesta = empresaController.actualizarTienda(request, principal);
+        ResponseEntity<PerfilDto> respuesta = empresaController.actualizarApariencia(request, principal);
 
         assertThat(respuesta.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(respuesta.getBody()).isEqualTo(dto);
-        verify(perfilService).actualizarTienda(request, principal);
+        verify(perfilService).actualizarApariencia(request, principal);
+    }
+
+    @Test
+    void actualizarPromocionesDevuelveOkConElPerfilActualizado() {
+        ActualizarPromocionesRequest request = new ActualizarPromocionesRequest("BIEN10", BigDecimal.TEN, false, null, null, null);
+        PerfilDto dto = perfilDto();
+        when(perfilService.actualizarPromociones(request, principal)).thenReturn(dto);
+
+        ResponseEntity<PerfilDto> respuesta = empresaController.actualizarPromociones(request, principal);
+
+        assertThat(respuesta.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(respuesta.getBody()).isEqualTo(dto);
+        verify(perfilService).actualizarPromociones(request, principal);
+    }
+
+    @Test
+    void actualizarDatosDevuelveOkConElPerfilActualizado() {
+        ActualizarDatosTiendaRequest request =
+                new ActualizarDatosTiendaRequest("mi-tienda", true, null, null, null, null, null, null, null);
+        PerfilDto dto = perfilDto();
+        when(perfilService.actualizarDatosTienda(request, principal)).thenReturn(dto);
+
+        ResponseEntity<PerfilDto> respuesta = empresaController.actualizarDatos(request, principal);
+
+        assertThat(respuesta.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(respuesta.getBody()).isEqualTo(dto);
+        verify(perfilService).actualizarDatosTienda(request, principal);
     }
 
     @Test
@@ -157,15 +180,15 @@ class EmpresaControllerTest {
     @Test
     void agregarBannerImagenDevuelveOkConLaImagenAgregada() {
         MultipartFile file = new MockMultipartFile("file", "banner.png", "image/png", new byte[]{1, 2, 3});
-        BannerImagenTiendaDto dto = new BannerImagenTiendaDto(1L, "url", 0, "VERTICAL", 5L);
-        when(perfilService.agregarBannerImagen(file, "VERTICAL", 5L, principal)).thenReturn(dto);
+        BannerImagenTiendaDto dto = new BannerImagenTiendaDto(1L, "url", 0, "HERO", 5L);
+        when(perfilService.agregarBannerImagen(file, 5L, principal)).thenReturn(dto);
 
         ResponseEntity<BannerImagenTiendaDto> respuesta =
-                empresaController.agregarBannerImagen(file, "VERTICAL", 5L, principal);
+                empresaController.agregarBannerImagen(file, 5L, principal);
 
         assertThat(respuesta.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(respuesta.getBody()).isEqualTo(dto);
-        verify(perfilService).agregarBannerImagen(file, "VERTICAL", 5L, principal);
+        verify(perfilService).agregarBannerImagen(file, 5L, principal);
     }
 
     @Test
@@ -241,53 +264,6 @@ class EmpresaControllerTest {
         assertThat(respuesta.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(respuesta.getBody()).isEqualTo(dto);
         verify(tiendaCategoriaService).eliminarImagen(1L, principal);
-    }
-
-    @Test
-    void listarTipsDevuelveOkConLaListaDelService() {
-        TipDto dto = new TipDto(1L, "Cuidado del mate", "Lavar con agua fría", 0, null);
-        when(tiendaTipService.listar(principal)).thenReturn(List.of(dto));
-
-        ResponseEntity<List<TipDto>> respuesta = empresaController.listarTips(principal);
-
-        assertThat(respuesta.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(respuesta.getBody()).containsExactly(dto);
-        verify(tiendaTipService).listar(principal);
-    }
-
-    @Test
-    void crearTipDevuelveCreatedConElTipCreado() {
-        CrearTipRequest request = new CrearTipRequest("Cuidado del mate", "Lavar con agua fría");
-        TipDto dto = new TipDto(1L, "Cuidado del mate", "Lavar con agua fría", 0, null);
-        when(tiendaTipService.crear(request, principal)).thenReturn(dto);
-
-        ResponseEntity<TipDto> respuesta = empresaController.crearTip(request, principal);
-
-        assertThat(respuesta.getStatusCode()).isEqualTo(HttpStatus.CREATED);
-        assertThat(respuesta.getBody()).isEqualTo(dto);
-        verify(tiendaTipService).crear(request, principal);
-    }
-
-    @Test
-    void eliminarTipDevuelveNoContentYDelegaEnElService() {
-        ResponseEntity<Void> respuesta = empresaController.eliminarTip(1L, principal);
-
-        assertThat(respuesta.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
-        assertThat(respuesta.getBody()).isNull();
-        verify(tiendaTipService).eliminar(1L, principal);
-    }
-
-    @Test
-    void actualizarFotoTipDevuelveOkConElTipActualizado() {
-        MultipartFile file = new MockMultipartFile("file", "foto.png", "image/png", new byte[]{1, 2, 3});
-        TipDto dto = new TipDto(1L, "Cuidado del mate", "Lavar con agua fría", 0, "url");
-        when(tiendaTipService.actualizarFoto(1L, file, principal)).thenReturn(dto);
-
-        ResponseEntity<TipDto> respuesta = empresaController.actualizarFotoTip(1L, file, principal);
-
-        assertThat(respuesta.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(respuesta.getBody()).isEqualTo(dto);
-        verify(tiendaTipService).actualizarFoto(1L, file, principal);
     }
 
     @Test
@@ -369,17 +345,9 @@ class EmpresaControllerTest {
                 99L, "Lucas", "lucas@test.com", RolEmpresa.ADMIN, "Mi Empresa", false,
                 "logo-url", "mi-empresa", true,
                 null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null,
+                null, null, null, null, null, null,
                 false, null, null, null,
                 false, null, true, null, true, true, null, null, null, null
-        );
-    }
-
-    private ActualizarTiendaRequest tiendaRequest() {
-        return new ActualizarTiendaRequest(
-                "mi-tienda", true, null, null, null, null, null, null, null, null,
-                "clasica", "claro", null, null, null, null, null,
-                false, null, null, null
         );
     }
 

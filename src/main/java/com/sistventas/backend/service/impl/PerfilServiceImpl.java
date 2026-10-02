@@ -4,7 +4,9 @@ import com.sistventas.backend.dto.ActualizarCatalogoConfigRequest;
 import com.sistventas.backend.dto.ActualizarEstiloTextoCatalogoRequest;
 import com.sistventas.backend.dto.ActualizarGeminiApiKeyRequest;
 import com.sistventas.backend.dto.ActualizarPerfilRequest;
-import com.sistventas.backend.dto.ActualizarTiendaRequest;
+import com.sistventas.backend.dto.ActualizarAparienciaRequest;
+import com.sistventas.backend.dto.ActualizarDatosTiendaRequest;
+import com.sistventas.backend.dto.ActualizarPromocionesRequest;
 import com.sistventas.backend.dto.BannerImagenTiendaDto;
 import com.sistventas.backend.dto.CambiarPasswordRequest;
 import com.sistventas.backend.dto.MensajeResponse;
@@ -51,14 +53,7 @@ public class PerfilServiceImpl implements PerfilService {
     // de la tienda pública sin dejar subir una galería sin límite.
     private static final int MAX_BANNER_IMAGENES = 6;
 
-    // Tope de la sección de banners verticales (ver Empresa.tiendaBannerVerticalPosicion):
-    // más generoso que el hero porque es un carrusel de scroll libre, no una
-    // rotación automática — más imágenes ahí no compite por atención de la
-    // misma forma.
-    private static final int MAX_BANNER_VERTICAL_IMAGENES = 12;
-
     private static final String TIPO_BANNER_HERO = "HERO";
-    private static final String TIPO_BANNER_VERTICAL = "VERTICAL";
 
     private final UsuarioRepository usuarioRepository;
     private final EmpresaRepository empresaRepository;
@@ -167,7 +162,40 @@ public class PerfilServiceImpl implements PerfilService {
 
     @Override
     @Transactional
-    public PerfilDto actualizarTienda(ActualizarTiendaRequest request, UserPrincipal principal) {
+    public PerfilDto actualizarApariencia(ActualizarAparienciaRequest request, UserPrincipal principal) {
+        Long empresaId = adminEmpresaIdOrThrow(principal);
+        Empresa empresa = empresaRepository.getReferenceById(empresaId);
+        empresa.setTiendaBannerTagline(vacioComoNull(request.tiendaBannerTagline()));
+        empresa.setTiendaBannerTitulo(vacioComoNull(request.tiendaBannerTitulo()));
+        empresa.setTiendaBannerDescripcion(vacioComoNull(request.tiendaBannerDescripcion()));
+        String fuente = vacioComoNull(request.tiendaFuente());
+        empresa.setTiendaFuente(fuente != null ? fuente : "clasica");
+        String tema = vacioComoNull(request.tiendaTema());
+        empresa.setTiendaTema(tema != null ? tema : "claro");
+        empresaRepository.save(empresa);
+
+        return toDto(buscarUsuario(principal));
+    }
+
+    @Override
+    @Transactional
+    public PerfilDto actualizarPromociones(ActualizarPromocionesRequest request, UserPrincipal principal) {
+        Long empresaId = adminEmpresaIdOrThrow(principal);
+        Empresa empresa = empresaRepository.getReferenceById(empresaId);
+        empresa.setTiendaCuponCodigo(vacioComoNull(request.tiendaCuponCodigo()));
+        empresa.setTiendaCuponPorcentaje(request.tiendaCuponPorcentaje());
+        empresa.setTiendaOfertaActiva(request.tiendaOfertaActiva());
+        empresa.setTiendaOfertaEtiqueta(vacioComoNull(request.tiendaOfertaEtiqueta()));
+        empresa.setTiendaOfertaTexto(vacioComoNull(request.tiendaOfertaTexto()));
+        empresa.setTiendaOfertaFechaFin(request.tiendaOfertaFechaFin());
+        empresaRepository.save(empresa);
+
+        return toDto(buscarUsuario(principal));
+    }
+
+    @Override
+    @Transactional
+    public PerfilDto actualizarDatosTienda(ActualizarDatosTiendaRequest request, UserPrincipal principal) {
         Long empresaId = adminEmpresaIdOrThrow(principal);
 
         // Si el slug pedido ya lo tiene OTRA empresa, es conflicto. Si es la
@@ -180,27 +208,13 @@ public class PerfilServiceImpl implements PerfilService {
         Empresa empresa = empresaRepository.getReferenceById(empresaId);
         empresa.setSlug(request.slug());
         empresa.setTiendaHabilitada(request.tiendaHabilitada());
-        empresa.setTiendaBannerTitulo(vacioComoNull(request.tiendaBannerTitulo()));
-        empresa.setTiendaBannerDescripcion(vacioComoNull(request.tiendaBannerDescripcion()));
-        empresa.setTiendaBannerTagline(vacioComoNull(request.tiendaBannerTagline()));
         empresa.setTiendaContactoWhatsapp(vacioComoNull(request.tiendaContactoWhatsapp()));
         empresa.setTiendaContactoInstagram(vacioComoNull(request.tiendaContactoInstagram()));
         empresa.setTiendaContactoEmail(vacioComoNull(request.tiendaContactoEmail()));
-        empresa.setTiendaCuponCodigo(vacioComoNull(request.tiendaCuponCodigo()));
-        empresa.setTiendaCuponPorcentaje(request.tiendaCuponPorcentaje());
-        String fuente = vacioComoNull(request.tiendaFuente());
-        empresa.setTiendaFuente(fuente != null ? fuente : "clasica");
-        String tema = vacioComoNull(request.tiendaTema());
-        empresa.setTiendaTema(tema != null ? tema : "claro");
-        empresa.setTiendaBannerVerticalPosicion(vacioComoNull(request.tiendaBannerVerticalPosicion()));
         empresa.setTiendaRazonSocial(vacioComoNull(request.tiendaRazonSocial()));
         empresa.setTiendaCuit(vacioComoNull(request.tiendaCuit()));
         empresa.setTiendaDireccion(vacioComoNull(request.tiendaDireccion()));
         empresa.setTiendaSobreNosotros(vacioComoNull(request.tiendaSobreNosotros()));
-        empresa.setTiendaOfertaActiva(request.tiendaOfertaActiva());
-        empresa.setTiendaOfertaEtiqueta(vacioComoNull(request.tiendaOfertaEtiqueta()));
-        empresa.setTiendaOfertaTexto(vacioComoNull(request.tiendaOfertaTexto()));
-        empresa.setTiendaOfertaFechaFin(request.tiendaOfertaFechaFin());
         empresaRepository.save(empresa);
 
         return toDto(buscarUsuario(principal));
@@ -253,20 +267,14 @@ public class PerfilServiceImpl implements PerfilService {
 
     @Override
     @Transactional
-    public BannerImagenTiendaDto agregarBannerImagen(MultipartFile file, String tipo, Long productoId, UserPrincipal principal) {
+    public BannerImagenTiendaDto agregarBannerImagen(MultipartFile file, Long productoId, UserPrincipal principal) {
         Long empresaId = adminEmpresaIdOrThrow(principal);
 
-        // Default a HERO cuando no viene tipo: así un frontend viejo que
-        // todavía no manda el campo sigue subiendo al banner rotativo de
-        // siempre, sin romperse.
-        String tipoNormalizado = tipo != null && !tipo.isBlank() ? tipo.trim().toUpperCase() : TIPO_BANNER_HERO;
-        boolean esVertical = TIPO_BANNER_VERTICAL.equals(tipoNormalizado);
-
-        long cantidadActual = tiendaBannerImagenRepository.countByEmpresaIdAndTipo(empresaId, tipoNormalizado);
-        int maximo = esVertical ? MAX_BANNER_VERTICAL_IMAGENES : MAX_BANNER_IMAGENES;
-        if (cantidadActual >= maximo) {
+        // Los banners verticales se retiraron (ahora son bloques): solo queda HERO.
+        long cantidadActual = tiendaBannerImagenRepository.countByEmpresaIdAndTipo(empresaId, TIPO_BANNER_HERO);
+        if (cantidadActual >= MAX_BANNER_IMAGENES) {
             throw new AccionNoPermitidaException(
-                    "Máximo " + maximo + " imágenes " + (esVertical ? "en los banners verticales" : "en el banner") + ". Sacá alguna para agregar otra.");
+                    "Máximo " + MAX_BANNER_IMAGENES + " imágenes en el banner. Sacá alguna para agregar otra.");
         }
 
         // Nunca se confía en un productoId que venga del cliente sin
@@ -289,7 +297,7 @@ public class PerfilServiceImpl implements PerfilService {
         imagen.setEmpresaId(empresaId);
         imagen.setImagenUrl("/uploads/empresas/" + nombreArchivo);
         imagen.setOrden((int) cantidadActual);
-        imagen.setTipo(tipoNormalizado);
+        imagen.setTipo(TIPO_BANNER_HERO);
         imagen.setProductoId(productoIdValidado);
 
         return toBannerImagenDto(tiendaBannerImagenRepository.save(imagen));
@@ -396,7 +404,6 @@ public class PerfilServiceImpl implements PerfilService {
                 empresa != null ? empresa.getTiendaCuponPorcentaje() : null,
                 empresa != null ? empresa.getTiendaFuente() : null,
                 empresa != null ? empresa.getTiendaTema() : null,
-                empresa != null ? empresa.getTiendaBannerVerticalPosicion() : null,
                 empresa != null ? empresa.getTiendaRazonSocial() : null,
                 empresa != null ? empresa.getTiendaCuit() : null,
                 empresa != null ? empresa.getTiendaDireccion() : null,

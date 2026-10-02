@@ -27,10 +27,9 @@ public class TiendaBannerImagen {
     @Column(nullable = false)
     private int orden;
 
-    // "HERO" (banner rotativo original) o "VERTICAL" (sección nueva, ver
-    // Empresa.tiendaBannerVerticalPosicion). String simple, no un enum de
-    // JPA: mismo criterio que el resto de los campos de personalización de
-    // la tienda (ej. Empresa.tiendaFuente) que tampoco usan enum de DB.
+    // Hoy siempre "HERO" (banner rotativo): los VERTICAL se retiraron en V64
+    // (pasaron a bloques). Se conserva la columna para no tocar el HERO.
+    // String simple, no un enum de JPA: mismo criterio que Empresa.tiendaFuente.
     @Column(nullable = false, length = 20)
     private String tipo = "HERO";
 
